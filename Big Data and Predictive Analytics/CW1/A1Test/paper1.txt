@@ -1,0 +1,1580 @@
+© The Author 2008. Published by Oxford University Press on behalf of The British Computer Society. All rights reserved.
+For Permissions, please email: journals.permissions@oxfordjournals.org
+
+Advance Access publication on February 27, 2008
+
+doi:10.1093/comjnl/bxml15
+
+ 
+
+Vertex—ordering Algorithms for
+Automatic Differentiation of
+Computer Codes
+
+E. M. TADJOUDDINE*
+
+Department of Computing Science, King’s College, University of Aberdeen, Aberdeen AB24 3UE, UK
+*Corresponding author: etadjoud@csd.abdn.ac.uk
+
+ 
+
+In the context of Automatic Differentiation (AD) of functions represented by computer code via
+the vertex elimination approach ﬁrst advocated by Griewank and Reese (0n the Calculation of
+Jacobian Matrices by the Markowitz Rule. In Griewank, A. and Corliss, G.F. (eds), Automatic
+Diﬁ‘erentiation of Algorithms: Theory, Implementation and Application, pp. 126—135. SIAM, 1991,
+Philadelphia, PA.), we present two approximate algorithms based on the linearized computational
+graph of the input code. The ﬁrst is a statement-reordering algorithm aiming to tune the AD-
+generated code so as to maximize its performance for modern superscalar processors. The second
+is aimed at detecting interface contractions introduced by Bischof and Haghighat (Hierarchical
+Approaches to Automatic Differentiation. In Berz, M., Bischof, C., Corliss, G. and Griewank,
+A. (eds), Computational Differentiation: Techniques, Applications, and Tools, pp. 83—94. SIAM,
+1996, Philadelphia, PA) in order to enable exploitation of the structure of the input code in the
+differentiation process. Performance data are also presented.
+
+Keywords: Automatic Diﬁ‘erentiation; vertex elimination; code reordering; interface contraction;
+graph partitioning
+
+Received 2 April 2007; revised 7 January 2008
+
+ 
+
+INTRODUCTION Following Griewank [2], the n inputs x : (x1, ..
+Many scientiﬁc applications require the ﬁrst derivatives (at renamed V17” ' ' ”V0” Whlle VP +1” ' ' ' ”VP“? are renamed to be
+the output y : (yl, . . . ,ym). The notation j<i means v,-
+
+least) of a function f x E R"I—>y E [Rm represented by compu—
+ter code. Finite—differencing is a popular way of calculating
+derivatives. It is easy to implement but incurs truncation
+errors that may affect the robustness of algorithms that use
+derivatives. An alternative is to use the algorithms and tools
+of Automatic Differentiation (AD) [1, 2], by which derivatives
+of a function represented by a computer program are computed
+Without the truncation errors associated with ﬁnite—
+differencing. This technology has been used in many engineer—
+ing applications; see for example [3—5]. AD can be viewed as
+a program transformation in which the original code’s state—
+ments that calculate real—valued variables are augmented
+with additional statements to calculate their derivatives.
+
+Typically, the original program is broken into a code list, a
+sequence of elementary operations that deﬁne variables v,- of
+the program in terms of previously deﬁned vjs and elementary
+functions of),- of the programming language:
+
+v,- : dam/ha). i:1....,p+m. (1)
+
+depends on vj. Assuming d),- have ﬁrst derivatives and differen—
+tiating (1) give the linear relations
+
+dvi:Zc,-jdvj, i:l,...,p+m, (2)
+
+j<i
+
+Where Ci]- : Bax/3w, between differential (or gradient) vari—
+ables dvi : ((3v,)/(8x1), . . . ,(Bvi/an».
+
+Computing the derivative Vf can be carried out using an
+elimination algorithm, which consists in eliminating the inter—
+mediate dvi (i : l, . . . , p) from (2) to express the output differ—
+entials dyi : dvp+i in terms of the input ones dxj : dvjw:
+
+n
+deJz-jdx,» i:1»---~m- (3)
+j:l
+
+Then J : (Jij) is the required in >< n Jacobian matrix
+J = Vf : Ely/Bx.
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+OLOZ ‘L ludv uo IoodJaAn J0 Anya/nun ‘AJean sauor Aaup/ls 112 610'suaumolpioixo|u[u100//:d11u won papeowmoa
+
+ 
+
+AD VERTEX ORDERING ALGORITHMS 689
+
+ 
+
+Moreover, AD mainly provides two standard algorithms for
+calculating derivatives: the forward mode and the reverse
+mode. The forward mode propagates directional derivatives
+along the control ﬂow of the program. The cost (in terms of
+ﬂoating point operations) of evaluating J is bounded from
+above using a small constant factor c as follows (see [2] for
+more details):
+
+Cost(J) 5 c ~ n ~ Cost(f). (4)
+
+The reverse mode ﬁrst computes the function, then calcu—
+lates the sensitivities of the output variables with respect to
+the intermediate and input variables in the reverse order to
+their calculation in the function. The sensitivities of the
+outputs to the input variables give the desired derivatives.
+Likewise, the cost of calculating J is bounded from above as
+follows:
+
+Cost(J) 5 c ~ in ~ Cost(f). (5)
+
+There is a close relationship between the elimination algor—
+ithm and the two AD standard algorithms [6]. The forward
+mode AD corresponds to taking the pivots in forward order
+and solving the system of equations (2) by forward substi—
+tution. Similarly, the reverse mode AD corresponds to choos—
+ing the pivots in reverse order and solving the transposed
+linear system using backward substitution. The main advan—
+tage of the elimination approach is that it permits us to
+exploit the sparsity of the computation. Denoting by n < n
+[m < m] the maximum number of non—zeros in any
+row [column] of J, the cost of calculating J is bounded
+above as c-n-Cost(f) [c-m-Cost(f)] by using a forward
+[reverse] pivot ordering [7]. One can mix the forward and
+reverse mode by looking for narrow interfaces and then parti—
+tioning the computational graph into subgraphs with a number
+of inputs [outputs] smaller than that of the overall codes. This
+is called interface contraction [8].
+
+The contributions of this paper are the following. (i) The
+paper discusses the opportunities for integrating the
+statement—reordering algorithm (SRA) outlined in [9] into
+ﬁnding elimination sequences that reduce ﬂoating point oper—
+ations (FLOPs) and memory trafﬁc in order to compute the
+Jacobian of the function. (ii) It presents a novel algorithm to
+ﬁnd a minimum interface contraction enabling us to mix
+forward and reverse AD elimination. (iii) Runtime results
+showed that Jacobian codes obtained by interface contraction
+and statement reordering are up to 11% faster compared to that
+of the nearest rival using the vertex elimination approach and
+up to 39 times faster compared to that produced by the conven—
+tional AD forward mode as implemented, for example in
+TAPENADE [10]. The remainder of this paper is organized as
+follows. Section 2 discusses the elimination approach in calcu—
+lating Jacobians. Section 3 presents a heuristic to reorder
+
+statements of the AD—generated code so as to improve its per—
+formance and discuss its implication to producing cache—
+sensitive elimination orderings. Section 4 presents a scheme
+enabling the exploitation of the code’s structure to be differen—
+tiated by a ‘divide and conquer’ strategy called interface con—
+traction. Section 5 discusses runtime results from three test
+cases. Finally, Section 6 concludes.
+
+2. AUTOMATIC COMPUTATION OF JACOBIANS
+
+Equations (2) form a sparse linear system of p + in equations
+in N : n + p + m unknowns with an N >< N lower triangular
+matrix C : (Ci,j)1:i,j:N~ wherein entries cf]- are deﬁned as
+
+23¢,-
+(if: 31/]:
+0 iflgignandlgjgN.
+
+ 
+
+ifn+15iEN and lgjgN,
+
+Writing dxi : ((Bxi/Bxl), . . . ,(Bxi/an», the linear system (2)
+can be rewritten in matrix form as,
+
+(C , IN)dx : [4” ] (6)
+
+0(p+m)xn
+
+where Ik denotes the k >< k identity matrix. The lower triangu—
+lar matrix C — IN is called the extended Jacobian. Adopting
+the standard notation [2, p. 161], the strictly lower triangular
+N >< N matrix C can be written in block form (with L strictly
+lower triangular)
+
+(7)
+
+E
+7:15:10:
+are“
+oooE
+
+The Jacobian J of the function f is then the Schur complement
+of R in C — IN and can be calculated using some form of
+Gaussian elimination [2] in which the intermediate variables
+dv1,...,dvp are eliminated one by one in some arbitrary
+order, the pivot sequence.
+
+An alternative view of the J acobian accumulation process is
+in terms of the computational graph G:(V, E) of the
+program, where V, the set of vertices, is the integers {1 —
+n,. . .,p + m} and E, the set of edges, consists of those (1, i)
+for which j <i. G is a directed acyclic graph (DAG ) whose
+edges correspond to the non—zero positions (i, j) of the
+matrix C. Labelling each edge (1, i) with its cf]- gives the line-
+arized computational graph, which is an alternative represen—
+tation of the matrix C.
+
+Gaussian elimination is then equivalent to vertex elimin-
+ation on the linearized computational graph, as follows.
+For each intermediate vertex k, following a chosen pivot
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+OLOZ ‘L ludv uo IoodJaAn 10 Anya/nun 71112an sauor Aaup/ls 112 610'suaumolpioixo|u[u100//:d11u won papeowmoa
+
+ 
+
+690 E. M. TADJOUDDINE
+
+ 
+
+sequence, for each predecessorj<k and each successor i>k,
+one either adds the value of cikckj to the label cij of edge (1, i)
+if this edge exists already, or (the ﬁll—in case) creates a new
+edge (1, i) labelled with this value. Vertex k and all its inci—
+dent edges are then deleted. At the end, the graph has
+become bipartite — its only edges join an input vertex
+to an output one, and the labels on them are the non—zeros
+of the Jacobian J. The matrix viewpoint can be found in
+[2, 6], the graph viewpoint in [2, 11], and the generalization
+of vertex elimination into edge or face eliminations in
+[11, 12].
+
+Assume that the DAG of Fig. 1a represents the linearized
+computational graph of a function f such that y : f(x), x E
+[R3 and y E R2. We wish to calculate the Jacobian Vf using
+the DAG of Fig. 1a.
+
+2.1. J acobian accumulation
+
+The Jacobian Vf : (3(y1, y2)/3(x1, x2, x3)) can be calculated by
+eliminating intermediate vertices from the graph until it
+becomes bipartite; see [2, 7, 11]. For example, vertex 4 may
+be eliminated by creating new edges c51 : cs4 * c41, c52 :
+cs4 * c42, c53 : cs4 * c43 and then deleting vertex 4 and all
+its adjacent edges. The elimination of vertex 4 took three mul—
+tiplications. We might then eliminate vertex 5 and ﬁnally
+vertex 6; this is a forward elimination as illustrated in
+Fig. 1b—d. We eventually obtain the Jacobian entries c71,
+c72, c73, C81, C82, C83. The overall elimination takes 3 + 3 +
+6 : 12 multiplications. However, if we choose to eliminate
+
+ 
+
+      
+
+V
+82
+
+      
+
+83
+
+FIGURE 1. An example Of vertex elimination on a computational
+graph: (a) original computational graph, (b) after elimination Of 4,
+(c) after elimination 5 and (d) after elimination Of 6.
+
+1
+
+5, 6, 4 in that order, the Jacobian accumulation will take
+1 + 2 + 6 : 9. Another elimination sequence may give a
+different multiplications count. In fact, the elimination
+sequence determines the number of multiplications required
+by the Jacobian accumulation.
+
+2.2. Elimination sequences
+
+There are as many vertex elimination sequences as there are
+permutations of the intermediate vertices. We choose a
+sequence using heuristics from sparse matrix technology
+aimed at reducing ﬁll—in since minimizing ﬁll—in, is
+NP—complete [13]. Over the past four decades several heuris—
+tics aimed at producing low—ﬁll orderings have been investi—
+gated. These algorithms have the desired effects of reducing
+the FLOP count as well. The most widely used are nested dis-
+section [14, 15] and minimum degree: the latter, originating
+with the Markowitz method [16], is, for example, studied
+in [17]. Nested dissection, ﬁrst proposed in [15], is a recur—
+sive algorithm which starts by ﬁnding a separator. A separa—
+tor is a set of vertices that, when removed, partitions the
+graph into two or more components, each composed of ver—
+tices that represent almost a constant factor of the total
+number of vertices and whose elimination does not create
+ﬁll—in in any of the other components. Then the vertices of
+each component are ordered, followed by the vertices in
+the separator. Unlike nested dissection that examines the
+entire graph before reordering it, the minimum degree or
+Markowitz —like algorithms tend to perform local optimiz—
+ations. At each elimination step, such a method selects a
+vertex with minimum cost or degree, eliminates it and
+looks for the next vertex with the smallest cost in the new
+graph. The Markowitz cost for a vertex v is deﬁned as the
+product of the number of predecessors (pred) and the
+number of successors (succ) it has. This cost,
+
+mark(v) : |pred(v)| ~ |succ(v)|, (8)
+
+represents the number of symbolic multiplications required
+to eliminate the intermediate vertex v. The number of sym—
+bolic multiplications N X required by the Jacobian accumu—
+lation is then
+
+P
+N. : Z mark(vi). (9)
+i:1
+
+To efﬁciently accumulate the Jacobian, we can decide to
+minimize the quantity N X, even though this is not sufﬁcient
+to guarantee runtime performance of the Jacobian code on
+modern superscalar machines. In [9], it is shown that
+memory accesses need be taken into account to optimize
+runtime performance. This can be carried out using
+statement—reordering techniques from software pipelining so
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+0103 ‘L ludv uo IoodJaAn 1o Anya/nun 7119an sauor Aaup/ls 19 610's19umolp101x0'|u[u100//:d11L1 won pap9o1umoa
+
+ 
+
+AD VERTEX ORDERING ALGORITHMs 691
+
+ 
+
+as to keep the processor’s pipelines busy, see Section 3 and ref.
+[9] for a detailed analysis.
+
+Note that, although the optimal Jacobian accumulation
+problem is closely related to the optimal ﬁll—in problem, we
+have observed that the two are different problems. To illustrate
+this observation, consider the graph of Fig. 1a; if we add the
+transitive edges (1, 5), (2, 5), (3, 5), (1, 6), (2, 6), (3, 6), (1,
+7), (1, 8), (2, 7), (2, 8), ( 3,7), (3, 8) (4, 7) and (4, 8) into it,
+a forward elimination will give 18 multiplications and 18
+additions (a total of 36 FLOPs) with a zero ﬁll—in, whereas
+the elimination sequence 5, 6, 4 will give 18 multiplications
+and 17 additions (a total of 35 FLOPs) while creating the
+ﬁll—in cs4. This means a minimum ﬁll—in does not necessarily
+imply minimum FLOPs.
+
+Moreover, the complex interdependence of the set of vari—
+ables within, for instance, the non—linear core of partial differ—
+ential equation (PDE) solvers (e.g. ﬁnite volume ﬂux
+calculations) combined with the speed of modern ﬂoating—
+point processors indicates that the throughput is governed
+more by data movement than the number of FLOPs; see [6,
+19]. Current heuristics [15—17, 20] aimed at reducing ﬁll—in
+have the desired effects of reducing the number of FLOPs as
+well. To increase the efﬁciency of AD by the elimination
+approach, we need to reduce the memory trafﬁc by making
+efﬁcient use of the processor’s registers and cache.
+
+3. CACHE-SENSITIVE ELIMINATION
+ORDERINGS
+
+Cache—sensitive elimination orderings are, here, viewed as
+orderings that reduce not only the number of FLOPs but the
+amount of memory accesses as well. The idea is to devise a
+Markowitz—like algorithm by adding to the Markowitz cost
+of equation (8), a quantity that will account for the memory
+trafﬁc. In this section, we propose to choose that quantity to
+be a ranking function based on the assumption that operations
+with more successors and which are located in a longer path
+should be eliminated ﬁrst. The reason is that such operations
+are likely to execute with a minimum delay and they affect
+more future operations in the evaluation process. A detailed
+study of this code—reordering scheme presented in this
+section can be found in [9].
+
+In previous studies [9, 19], we have basically used ﬁll—
+reducing elimination heuristics followed by statement—
+reordering schemes. A closer look at the assembler from the
+AD—generated codes showed that codes with the lowest
+FLOPs count were not necessarily the fastest. Moreover, reor—
+dering statements sometimes yielded improved runtime. An
+SRA based on depth—ﬁrst traversal of the data dependence
+graph (DDG) [21] of the computer code was studied in [6,
+19]. The idea was that, for each statement s, the SRA tries
+to place the statements on which s depends, close to s. It
+was hoped this would speed up the code by letting the
+
+compiler use the registers better since, in our test cases,
+cache misses were shown not to be a problem [19]. The
+beneﬁts were inconsistent, probably because this does not
+account for the instruction level parallelism of modern cache—
+based machines and the latencies of certain instructions.
+
+We are looking for statement orderings that encourage the
+compiler to exploit instruction—level parallelism and use regis—
+ters better, by an SRA that gives priority to certain statements
+via a ranking function. The compiler’s instruction scheduling
+and register allocation work on a dependency graph G” whose
+vertices are machine code instructions. We have no knowledge
+of the graph G”, so we work on the derivative code’s DDG G’.
+This relies on the premiss that our ‘preliminary’ optimization
+will help the compiler generate optimized machine code.
+In the next sections, we shall make use of the
+instruction—scheduling approach used in, for instance, [22],
+and the ranking function ideas of [23—26] to reorder the state—
+ments of the AD—generated code.
+
+3.1. The derivative code and its evaluation
+
+The derivative code includes original statements v,- of f’s
+code as well as statements to compute the local derivatives
+cij that are the non—zeros of the extended Jacobian C before
+elimination. But the bulk of it is elimination statements. As
+originally deﬁned in [7], these take the basic forms cij: :
+cikckj or cij: : cf]- + cikckj, and typically a cij position is ‘hit’
+(updated) more than once, needing non—trivial renaming of
+variables to put it into the needed single-assignment form.
+This means every variable is assigned exactly once. Further—
+more, the resulting code is unnecessarily long and can be
+rewritten in a compact way.
+
+Though not strictly necessary, we assume the vertex elim—
+ination process has been rewritten in a single—assignment
+form, e.g. by the LU—based approach of [27]. That is, that
+each cij occurring in it is given its ﬁnal value in a single
+statement of the form either cij: : cg- + ZkEK cikckj- if updat—
+ing an original elementary derivative, or cij: : ZkEK cikckj- if
+creating ﬁll—in. Here K is a set of indices related to i, j and to
+the elimination order used, and c2- stands for an expression
+that computes the elementary derivative, Bobi/ij. The
+result is that the derivative code is automatically in single—
+assignment form.
+
+Its graph G’ : (V’,<’), where V’ is the set of statements
+and 4 the data dependence relationship, is a DAG. A sche-
+dule 71' for G’ assigns to each statement (denoted s in this
+section) a start—time in clock—cycle units, respecting data
+dependencies. It is viewed as a one—to—one mapping of V
+to the integers {0, 1, 2, }. Write t(s) for the execution
+time of s. Then to respect dependencies it is necessary and
+sufﬁcient that:
+
+51 < S2 :> 77151) + l(51) E 77(52)- (10)
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+0103 ‘1 ”Adv uo IoodJaAn 1o Anya/nun 7119an sauor Aaup/ls 19 610's19umolp101x0'|u[u100//:d11L1 won pap9o1umoa
+
+ 
+
+692 E. M. TADIOUDDINE
+
+ 
+
+for s1 and sz in V’. The completion time of 71' is
+
+T07) : fig/#710) + l(S)}- (11)
+
+Our aim is to ﬁnd 71' to minimize the quantity T(7T) subject to
+(10). This optimization problem is NP—hard [22, 28].
+
+3.2 The DDG of the derivative code
+
+The classical way of constructing the derivative code’s DDG
+would be to parse the code, build up an abstract representation
+and deduce the dependencies between all statements; see for
+instance [21, 28]. Since a derivative code is generated from
+a function code, its DDG can be constructed more easily by
+using data that are available during code generation. We
+omit details here. Consider the code fragment and its compu—
+tational graph show in Fig. 2. Its computational graph can be
+augmented as represented in Fig. 3 with the extra edges pro—
+duced by eliminating the intermediates v1 and vz in that order.
+
+Denoting by F the set of newly created edges (ﬁll—in) from
+the DAG G : (V,E) and 73 the set of paths joining i and j, an
+edge (1, i) of the above augmented graph is labelled with a
+partial derivative using the chain rule as follows:
+
+63+: H Clk if(j,l)EE,
+Cij:
+
+P(l,k)€7>
+12
+2 H at mmec ( )
+l 790,106?)
+
+ 
+
+FIGURE 3. Graph augmentation process: eliminated vertices are
+kept and the ﬁll—in is represented by dashed arrows.
+
+1),] : 1‘1
+
+1’0 : 902
+
+(321 : 1
+
+62‘71 : —l
+
+U1 : sin(’uu)
+610 = COS(’UQ)
+112 : 1,71 7 1L1
+(541 : 1/(2x/W)
+1’3 I 177102
+
+032 = 1771
+
+1,74 : “E
+
+020 : 021010
+63.71 : U2 + 0320251
+C:50 : 0.32020
+040 = 041610
+
+FIGURE 4. The derivative cOde from the DAG Of Fig. 3.
+
+Figure 4 shows the derivative code from the input code
+shown on the left in Fig. 2, with a somewhat arbitrary order
+of the statements respecting dependencies. Note the compu—
+tation of c3, ,1 it combines the computation of an elementary
+derivative with the elimination of vertex 2.
+
+There are different ways of ordering the statements of the
+derivative code in Fig. 4 including depth—ﬁrst or breadth—ﬁrst
+traversals. In Section 3.3, we propose a statement—ordering
+that combines the depth—ﬁrst traversal property and the
+instruction—level parallelism of pipelined processors via a
+ranking function.
+
+3.3. A statement-reordering algorithm
+
+Our statement reordering is adapted from greedy
+list—scheduling algorithms as investigated in [25, 29]. We
+ﬁrst preprocess the DDG G’ to compute a ranking function
+that deﬁnes the relative priority of each vertex. Then, a modi—
+ﬁcation of the labelling algorithm of [29, 30] is used to itera—
+tively schedule the vertices of the graph G’.
+
+Our ranking function uses the assumption that operations
+with more successors and which are located in a longer path
+should be given priority. Such operations are likely to
+execute with a minimum delay and to affect more operations
+in the rest of the schedule. We use the functions level(v) and
+depth(v) deﬁned to be the length of the longest path from v
+to an input (minimal) vertex and to an output (maximal)
+vertex, respectively. The procedure level(v) is deﬁned by
+
+(1) for each input (minimal) vertex v, level(v) : : 0;
+(2) for any other v E V, level(v) :: 1 + max{level(w), for
+all w < v}.
+
+The fuction depth(v) is deﬁned in the obvious dual way. For
+a vertex v E V we deﬁne the ranking function by
+
+rank(v) : a >l< depth(v) + b >l< succ(v), (13)
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+0103 ‘1 ”Adv uo IoodJaAn 1o Anya/nun 7119an sauor Aaup/ls 19 610's19umolp101x0'|u[u100//:d11L1 won pap9o1umoa
+
+ 
+
+AD VERTEX ORDERING ALGORITHMs 693
+
+ 
+
+where succ(v) is the number of successors of v and a, b weights
+chosen on the basis of experiment. For b : 0, we recover the
+SRA using the depth—ﬁrst traversal as in [6, 19]. By combining
+the values depth(v) and succ(v), we aim to trade off between
+exploiting instruction—level parallelism of modern processors
+and minimizing register pressure.
+
+The preprocessing phase of our algorithm is as follows:
+
+(1) Compute the levels and depths of the vertices of G’.
+(2) Compute the ranks of the vertices as in equation (13).
+
+The iterative phase of the algorithm schedules the vertices
+of G’ in decreasing order of rank. It constructs the mapping
+71' deﬁned in Section 3.1 by combining the rank of a vertex
+and its readiness using the following rule.
+
+Rule 1
+
+A vertex v is ready to be scheduled if it has no predecessor or if
+all its predecessors have already completed.
+
+This ensures that data on which the vertex v depends are
+available when v is scheduled.
+
+Ties between vertices are broken using the following rule.
+
+Rule 2
+
+0 Among vertices of the same rank choose those with the
+minimum level.
+0 Among those of the same level, pick the ﬁrst.
+
+The core of the scheduling procedure is as follows:
+
+(1) Schedule ﬁrst an input vertex v with the highest rank
+(break ties using Rule 2). That is, set time 1' :: 0 and
+77(v) :: r.
+
+(2) For 1' > 0, let v be the last vertex that was scheduled at
+times <7.
+
+(a) Extract from the set of so—far—unscheduled vertices,
+the set A as follows:
+
+S(v) :: {w : w > v}
+If S(v) is nonempty, set
+B(v) :: {u : level(u) < max{level(w)
+forw E S(v)}},
+A :: S(v) U B(v);
+Otherwise
+A :: the set of remaining vertices.
+
+(b) Extract from A, the set of vertices R that are ready
+to be scheduled.
+
+(c) If R is empty, do nothing. Otherwise, choose from R
+a vertex w with maximum rank (break ties by Rule
+2), and set 77(w) :: r.
+
+(d) Set 7:: 7+ 1.
+(3) Repeat Step 2 until all vertices are scheduled.
+
+We can easily check that this algorithm determines a state—
+ment ordering 71' that satisﬁes (10), thus preserving the data
+dependencies between vertices of the graph. In [9], we gave
+a small example wherein this greedy list—scheduling algorithm
+takes the optimal number of cycles to complete whereas the
+depth—ﬁrst traversal algorithm takes two extra cycles to com—
+plete on an idealized processor. The complexity of this label—
+ling algorithm, which is similar to that of [29, 30] for a DAG
+with k vertices and e edges, was initially proved to be O(k2)
+[29, 30] and can be implemented in O(k + e) as shown in [31].
+
+Note that this reordering scheme can be used for any
+numerical code for which we can build its DDG. In the speciﬁc
+case of AD vertex elimination algorithms, we argue that we
+can ﬁnd elimination sequences based on a Markowitz—style
+algorithm that attempts to minimize the Markowitz cost of
+equation (8) and to maximize the ranking function of equation
+(13) in an incomplete DDG. The incomplete DDG is set to the
+input code’s computational graph G at the beginning, and it is
+augmented at each elimination step. The cost of eliminating a
+vertex v can be formulated as follows wherein a, B, y are non—
+negative weights chosen by experiments:
+
+Cost(v) : a >l< rank(v) 7 (B >l< depth(v) + 7* succ(v)). (14)
+
+Note this is an alternative to ﬁnding an elimination
+sequence based solely on minimizing the FLOPs count fol—
+lowed by an SRA. The idea is to produce elimination
+sequences that trade off between minimizing the FLOPs
+count and the number of memory accesses in a single
+objective.
+
+To further improve the AD—generated code, we can use
+insights of the input code in the differentiation process.
+Insights may be known a priori or for some cases they may
+be detected using some analysis of the input code. An
+example is interface contraction [8], which illustrates a
+divide—and—conquer strategy resulting in improved perform—
+ance of the generated code.
+
+4. INTERFACE CONTRACTION
+
+Interface contraction, also termed as vertex cut [32], was intro—
+duced in [8] and consists in looking for narrow interfaces and
+then partitioning the computational graph into subgraphs with
+a number of inputs [outputs] smaller than that of the overall
+code’s. It is seen as a way of exploiting the program structure
+in order to generate an efﬁcient derivative code. Equations (4)
+and (5) show that generally, it is better to use the forward
+mode AD when the number of inputs n is smaller than the
+number of outputs in and the reverse mode otherwise. In
+other words, a forward elimination is better for a
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+0103 ‘1 ”Adv uo IoodJaAn 1o Anya/nun 7119an sauor Aaup/ls 19 610's19umolp101x0'|u[u100//:d11L1 won pap9o1umoa
+
+ 
+
+694 E. M. TADIOUDDINE
+
+ 
+
+computational graph or subgraphs of the computational graph
+with a number of input vertices smaller than that of output ver—
+tices. Exploiting interface contraction provides a hierarchical
+differentiation process and can lead to a substantial runtime
+reduction of the derivative code [8]. To date, AD tools do
+not provide an automated way of ﬁnding an interface contrac—
+tion. In [33], a graph—drawing system is used to recognize an
+interface contraction of a computational graph whilst stressing
+the beneﬁts of identifying and exploiting such bottlenecks in
+the derivative calculation. The results of [8] have been
+achieved by manually transforming the code. Here, we
+devise an approximate algorithm to automatically identify an
+interface contraction and then partition the computational
+graph so as to hierarchically pre—accumulate local Jacobians
+and combine them for the overall Jacobian evaluation; see,
+for example, [34].
+
+4.1. A motivating example
+
+To motivate the beneﬁts of exploiting interface contraction,
+consider the graph example given in [8] and shown in Fig.5.
+Eliminating the ﬁve intermediate vertices of the graph G of
+Fig.5 in forward or reverse order gives 2 + 2 + 6 + 6 + 6 :
+22 multiplications for the Jacobian accumulation. If we use
+the elimination sequence 6, 4, 5, 7, 8, then the Jacobian
+accumulation takes 24 multiplications. However, if we can
+identify the separator S : {6}, we can then partition G into
+two subgraphs G1 : (V1, E1), G2 : (V2, E2) with V1 : {1, 2,
+3, 4, 5} and V2 : {7, 8, 9, 10, 11}. This partition allows us
+to eliminate the intermediates 4, 5 in G1, the intermediates
+7, 8 in G2 and eventually the vertex 6 in the separator. This
+elimination process computes the Jacobian in 17
+multiplications.
+
+This partition has worked just as the nested dissection algor—
+ithm [15]. However, interface contraction is not constrained
+by the need of a balanced separator as required by graph par—
+titioning algorithms for parallel computations. The good news
+is that such partitioning algorithms for sparse linear algebra or
+parallel computations can be adapted to ﬁnd out near—optimal
+partitions for the interface contraction problem in order to efﬁ—
+ciently accumulate Jacobians in the AD context.
+
+4.2. Finding vertex separators
+
+In graph terms, interface contraction seeks to partition the
+computational graph into subgraphs using separators. Some
+graphs have small vertex separators, e.g. n—vertex trees have
+an optimal separator composed of the root of the tree.
+Others have larger vertex separators, e. g. an n—vertex complete
+graph Kn has a minimal separator of size w(n). Minimal
+separators are important in parallel computations [35],
+sparse LU factorization and many graph algorithms based on
+the divide—and—conquer paradigm [20, 36].
+
+Generally, ﬁnding minimal separators is NP—hard [35, 20].
+However, there are approximation algorithms that ﬁnd
+vertex separators whose sizes are closer to those of the
+optimal separators of the input graph [37]. Such approxi—
+mation algorithms can be modiﬁed so as to produce imbal—
+anced separators by specifying a percentage of imbalance
+between the partitions to be produced; see for example [38].
+We devise an approximate algorithm to produce a ‘best’
+separator enabling the interface contraction strategy. We
+deﬁne a best separator to be a separator composed of vertices
+that are mutually independent and therefore its size cannot be
+reduced any further. Two vertices v1 and v2 are mutually inde—
+pendent if there is no path connecting v1 and vz.
+
+In the literature, there are at least two types of algorithms
+that can ﬁnd vertex separators:
+
+0 Find a small edge—separator and then reﬁne it to vertex
+separator using a vertex cover scheme [36—38].
+
+0 Directly build a vertex separator in the partitioning
+process [20].
+
+Vertex separators are more useful for ﬁll—reducing heuris—
+tics [39] which the interface contraction is related to. Our
+approach is to directly compute an initial separator of the
+computational graph and then reﬁne it using an iterative
+scheme.
+
+The initial separator is similar to that of [39] but uses a kind
+of breadth—ﬁrst search algorithm [40] in a levelized directed
+graph G : (V, E) instead of the minimum—degree algorithm
+used in [39]. It also uses the notion of neighbouring vertices
+./\/(v) for a given vertex v. A neighbouring vertex of a vertex
+v is a direct successor or predecessor of v. Our algorithm is
+ﬂexible allowing us to produce unbalanced separators for a
+given fraction 8. Denoting by C : V — C and A the set of
+visited but untagged vertices, our procedure for the initial
+separator can be described as follows:
+
+(1) Compute the levels of the directed graph using the pro—
+cedure outlined in Section 3.3, choose an input vertex x,-
+and SetA : :0; C: : Q.
+
+(2) Update A :: (A — {x,}) U ./\/(x,-). Choose v E A among
+the vertices of the lowest level and tag it. Repeat this
+process with the new vertex v so as to form a subgraph
+Cof size max {|C|: |C| <8 |V|}.
+
+(3) Set the initial separator S :: {u E C : Elv E Cwith (u,v)
+E E
+
+(4) Set the initial partition P :: C U C
+
+Applied to the graph of Fig. 5, with s : 2/3, we start with
+empty sets C and A and a vertex at the lowest level, say I.
+We tag and add it to C. We compute A : 0U ./\/(1) : {4}.
+We choose 4, tag and add it to C. Again, we compute A :
+0U ./\/(4) : {2, 6}. We choose the vertex of lowest level 2,
+tag and add it to C. We update A : {6} U ./\/(2) : {5, 6}. We
+then choose 5 since it has the lowest level and we continue
+the process. We stop when C: {1, 2, 3, 4, 5, 6, 7} since
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+0103 ‘1 ”Adv uo IoodJaAn 1o Anya/nun 7119an sauor Aaup/ls 19 610's19umolp101x0'|u[u100//:d11L1 won pap9o1umoa
+
+ 
+
+AD VERTEX ORDERING ALGORITHMs 695
+
+ 
+
+11
+
+     
+
+1 2 3
+FIGURE 5. A DAG exhibiting an interface contraction.
+
+|C| < 2/3|V| : 22/3. At the end, we have the initial partition
+C : {1, 2, 3, 4, 5, 6, 7} and C : {8, 9, 10, 11} and the initial
+separator is S : {6, 7}.
+
+The initial separator is then iteratively reﬁned to produce a
+best separator as well as a best partition by using the following
+procedure:
+
+(1) Set BestPartition : : C U C.
+(2) Set BestSeparator: : S.
+(3) If BestSeparator is not minimal then
+(a) Among vertices of BestSeparator, select a vertex v
+of highest level, which is adjacent to one or more
+vertices of BestSeparator since BestSeparator
+must eventually contain mutually independent
+vertices.
+(b) If v E C then
+
+set C:: Ci{v},
+set C:: CU{v}.
+
+Otherwise,
+
+set C:: CU{V},
+set C:: Ci{v}.
+
+(c) Set BestSeparator : : S — {v}.
+(d) Set BestPartition : : C U C.
+(4) Repeat step 3 until Best Separator is minimal.
+
+Applied to the initial separator S: {6, 7} obtained pre—
+viously, we choose 7 as it is adjacent to 6 and has the
+highest level. We remove it from the set C and the separator
+S, which becomes {6} and therefore minimal. At the end we
+obtain the best partition P :{1, 2, 3, 4, 5, 6} U {7, 8, 9, 10,
+11} and the best separator is therefore S : {6}.
+
+Our algorithm for computing a best separator allows us to
+partition medium—sized computational graphs composed of
+some hundreds of vertices. However, the computational
+graphs can be larger and even sparser for real—life applications.
+
+Such graphs can be partitioned using multilevel partitioning
+schemes [20, 35, 41] or recursive bisection [42]. For the inter—
+face contraction problem, we propose a simple recursive
+bisection—type algorithm.
+
+4.3. Recursive bisection scheme
+
+A bisection of a graph G : (V,E) divides its vertices V into
+two disjoint subsets Vu, Vd of equal size. An approximate
+bisection relaxes the constraint of producing subsets of the
+same size. Our initial separator procedure is an approximate
+bisection. For a given percentage 8, our recursive bisection
+scheme can be described as follows:
+
+(1) Partition G into Vu, Vd.
+
+(2) If |Vu| > 28, partition the subgraph composed of vertices
+of Vu.
+
+(3) If |le > 28, partition the subgraph composed of vertices
+of Vd‘
+
+In this scheme, the partitioning is carried out using the
+approximate procedure outlined in Section 4.2. As shown in
+[42] this approximate recursive bisection algorithm can
+produce a p—partition of the input graph for a cost that is
+within a factor 0(log p) of the cost of the optimal p—partition.
+
+S. EXPERIMENTS
+
+We would like to compare the performance of Jacobian code
+produced by the interface contraction approach with that pro—
+duced by other vertex elimination techniques, conventional
+AD tools such as TAPENADE [10], and ﬁnite—differencing
+(FD). This is carried out for three test problems on two differ—
+ent platforms (processor + compiler) described in Table 1.
+The processors we used have a memory hierarchy with the
+time required for loading data into the limited arithmetic reg—
+isters increasing from the level—1 cache to the main memory.
+Optimizing compilers usually seek to maximize performance
+by minimizing redundant calculations as well as the memory
+trafﬁc between registers and cache. Memory trafﬁc may be
+increased by stalls arising when an instruction calls for a
+value not yet loaded into registers and causing the processor
+to wait. The AMD and Intel processors in our study feature
+
+TABLE 1. Platforms.
+
+ 
+
+ 
+
+Platforms Processors CPU speed L2—cache
+AMD AMD Opteron 2.2 GHz 1 MB
+Intel Pentium D 2.99 GHz 1 MB
+
+OS Compiler Options
+AMD Linux/Centos G95 version 0.91 —0 —r8
+Intel Windows XP G95 version 0.91 —0 —r8
+
+ 
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+0103 ‘1 ”Adv uo IoodJaAn 1o Anya/nun 7119an sauor Aaup/ls 19 610's19umolp101x0'|u[u100//:d11L1 won pap9o1umoa
+
+ 
+
+696 E. M. TADIOUDDINE
+
+ 
+
+an out-of-order execution, in which the processor maintains a
+queue of arithmetic operations so that if the one at the head of
+the queue stalls, it can switch to an operation in the queue that
+is able to execute. More details on such issues may be found
+in [18].
+
+5.1. Implementation outline
+
+A Jacobian code generation tool using the LU—based vertex
+elimination approach of [27] was written in MATLAB. The
+tool takes as input the computational graph of the function f
+and a speciﬁed pivot ordering to produce the derivative
+code; see [27] for more details. The pivot ordering is obtained
+by ﬁnding a feasible vertex separator as described in Section 4,
+which is smaller in size than the number of input and output
+vertices, then ordering intermediate vertices of the subgraph
+with the inputs [outputs] in reverse [forward] order, respect—
+ively, and ﬁnally adding the vertices in the separator. Other
+pivot orderings are: forward order, reverse order, the order
+given by the Markowitz algorithm, and Naumann’s [11]
+VLR variant on Markowitz. Moreover, the tool performs
+certain optimizations, e.g. constant value propagation, simpli—
+ﬁcations avoiding expressions of the form cf]- — cij, cij/cij and
+c,-j*0, and elimination of copies of the form cij:ck1 or
+cf]- : —ck1 using an alias table. This implementation has bene—
+ﬁted from the support for sparse matrices within MATLAB. It
+was intended for modest sized functions with computational
+graphs containing hundreds of vertices.
+
+To enable rapid and extensive testing, we wrote another
+MATLAB tool that allows us to generate a ‘random function’
+f by selecting its numbers n, m and p of inputs, outputs and
+intermediate variables, respectively, plus a random number
+seed for reproducibility purposes. Each code list statement
+does one arithmetic operation +, —, * or /, selected using
+the MATLAB random number generator with probabilities
+reﬂecting typical numerical code. The tool outputs (i) the
+computational graph for use by the other tool that generates
+Jacobian accumulation code, (ii) a Fortran ﬁle that computes
+just f and (iii) a Fortran ﬁle that computes the local derivatives,
+into which Jacobian accumulation code is inserted to make a
+complete subroutine.
+
+5.2. Tests
+
+Using our MATLAB tool, we generated three random codes
+which we used as our examples to compare the interface con—
+traction scheme with other vertex elimination methods, the
+forward vector mode AD [10] as implemented in TAPENADE
+as well as the one—sided ﬁnite—differencing.
+
+RC1: The 50 >< 50 Jacobian of a function randomly gener—
+ated by our MATLAB tool by setting n : 50, m : 50 and
+p : 150. This has 394 non—zero entries out of a possible
+2500. The corresponding linearized computational graph
+
+of the input is composed of 250 vertices and 399 edges.
+The calculated size of vertex separator is 34.
+
+RC2: The 150 >< 85 J acobian of a function randomly gener—
+ated by our MATLAB tool by setting n : 85, m : 150 and
+p : 800. This has 3275 non—zero entries out of a possible
+12 750. The corresponding linearized computational graph
+of the input function is composed of 1035 vertices and
+1898 edges. The size of the vertex separator is 14.
+
+RC3: The 50 >< 85 Jacobian of a function randomly gener—
+ated by our MATLAB tool by setting n : 85, m : 50 and
+p : 1500. This has 2560 non—zero entries out of a possible
+4250. The corresponding linearized computational graphs
+of the input function is composed of 1635 vertices and
+3098 edges. The size of the vertex separator is 27.
+
+All these Jacobians are not particularly sparse but their cal—
+culations involve sparse computations since their linearized
+computational graphs are very sparse.
+
+For each technique, we give (i) W(Vf) W(f), the ratio of the
+nominal number of ﬂoating—point operations within the gener—
+ated Jacobian code to those in the function code, (ii) the cor—
+responding ratios of CPU times for each platform. The
+nominal works in ﬂoating—point operations W(f) and W(V f)
+were obtained using a PERL script to count the number of
+times that *, + , — and / operations appear in the source code.—
+Consequently, the operation counts W(V((f)) and W(f) are
+over—estimates of the number of ﬂoating—point operations per—
+formed since they do not take account of optimizations per—
+formed by the compiler. We assume the compiler performs
+constant value propagation and evaluation [18, p. 32] to
+avoid unnecessary arithmetic operations.
+
+For each test problem, a driver program was written to
+execute and time different Jacobian evaluation techniques.
+To check that the Jacobians were calculated correctly, we
+compared each to one produced by TAPENADE’s forward
+vector mode. Each set of values for the input variables was
+generated by using the Fortran intrinsic routine random,—
+number. To improve consistency of timings, a number Nd
+of sets of random input data was generated for a given
+problem. The code for each technique was run Nd times and
+the total time was divided by Nd to give the CPU time estimate
+for that code. The whole process was repeated ten times to get
+runtime averages.
+
+For each table, the ﬁrst two rows are for TAPENADE’s
+forward vector mode and one—sided ﬁnite differencing. The
+remaining rows are for various versions of (vertex elimin—
+ation) VE methods. For VE, the mnemonics F, R, Mark,
+VLR denote ways of choosing the pivot order: forward
+order, reverse order, the order given by the Markowitz algor—
+ithm, and Naumann’s [11] VLR variant on Markowitz. IC
+stands for interface contraction. To give an idea of the effect
+of a statement reordering (SR), we have reordered the
+Jacobian code obtained by interface contraction as follows.
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+0103 ‘1 ”Adv uo IoodJaAn 1o Anya/nun 7119an sauor Aaup/ls 19 610's19umolp101x0'|u[u100//:d11L1 won pap9o1umoa
+
+ 
+
+AD VERTEX ORDERING ALGORITHMs 697
+
+ 
+
+The linearized computational graph of the original code is split
+into three components C1; S; C2 related respectively to the
+subgraph containing the inputs, the separator, and the sub—
+graph with the outputs. It is then eliminated so as to produce
+the derivative code in the order C1; dC1; S; C2; dC2; dS
+instead of C1; S; C2; dC1; dC2; dS used in the VE—IC
+method. Here, the notation d means ‘derivative of’.
+
+The TAPENADE forward vector mode differentiates each line
+of the input code by propagating directional derivatives. It
+treats the jth column of the Jacobian J as the directional deriva—
+tive (ej - V) f, where q- is the jth unit vector, and computes these
+in a loop one column at a time. The unit vectors are the columns
+of the n >< n identity matrix In, which is input to the process as a
+‘seed matrix’ (for a general n >< q seed matrix S , the output is J
+* S: this can be exploited, e.g. by Jacobian compression meth—
+ods).The forward vector mode also uses optimization tech—
+niques such as the common subexpression elimination.
+However, it may perform useless calculations such as multiply—
+ing by or adding zero. Consequently, it does not account for the
+sparsity of the calculation. Results on FLOP and runtime ratios
+are shown in Tables 2— 4. For completeness, Table 5 exhibits
+the statistics for the original codes considered so far.
+
+Our ﬁrst observation is that runtime performance depends
+on the platform. We also observe that the VE—based techniques
+
+TABLE 2. FLOPs and CPU time ratios on the RC1 problem.
+
+ 
+
+ 
+
+CPU(Vf)/CPU(f)
+Technique W(Vf)/W(f) AMD Intel
+TAPENADE 62.50 95 .33 95 .51
+FD 51.75 68.47 72.02
+VE-F 3.11 19.86 20.11
+VE-R 2.83 20.93 20.15
+VE-IC 2.80 18.85 18.93
+VE-IC-SR 2.80 18.12 18.07
+VE-Mark 2.89 19.76 20.08
+VE-VLR 3.09 19.81 20.10
+
+ 
+
+TABLE 3. FLOPs and CPU time ratios on the RC2 problem.
+
+ 
+
+ 
+
+CPU(Vf)/CPU(f)
+
+Technique W(Vf)/W(f) AMD Intel
+
+TAPENADE 129.20 465.89 255.15
+FD 86.35 129.06 138.52
+VE—F 6.55 75.17 51.65
+VE—R 5.49 78.75 53.92
+VE—IC 4.88 72.27 47.64
+VE—IC—SR 4.88 70.42 46.75
+VE—Mark 6.84 79.94 53.11
+VE—VLR 6.92 78.64 52.65
+
+ 
+
+TABLE 4. FLOPs and CPU time ratios on the RC3 problem.
+
+ 
+
+ 
+
+CPU(Vf)/CPU(f)
+
+Technique W(Vf)/W(f) AMD Intel
+
+TAPENADE 171.32 878.11 605.83
+FD 86.22 77.47 93.45
+VE-F 9.99 32.61 19.33
+VE-R 4.77 27.73 18.58
+VE-IC 3.99 23.27 17.19
+VE-IC-SR 3.99 22.52 16.05
+VE-Mark 8.08 25.45 18.16
+VE-VLR 7.52 25.38 18.33
+
+ 
+
+TABLE 5. Nominal ﬂoating—point Operation counts W(f), number
+Of lines Of cOde (l.O.c.) and CPU times for test problem functions.
+
+ 
+
+Function
+CPU time
+MD (MS)
+
+ 
+
+Problem Number Of FLOPs Number Of l.O.c. AMD Intel
+
+ 
+
+RC1 200 200 0.62 1.29
+RC2 950 950 1.72 2.61
+RC3 1550 1550 2.90 4.97
+
+ 
+
+performed dramatically less ﬂops than TAPENADEThey are
+consistently faster than ﬁnite—differencing which, it is well
+known, does not provide accurate results. The runtime ratios
+for TAPENADE’s forward vector mode are higher than may
+be expected. We think this is due to the fact that TAPENADE’s
+vector mode is applied to an input code, which is essentially a
+code list. Consequently, a lot of intermediate array variables
+representing derivative objects are created and each line of
+the input code is differentiated without accounting for sparsity
+that may arise. This can increase the memory requirement and
+affect the cache usage by the derivative code and in some
+cases such as in the RC3 test wherein there are 1500 inter—
+mediate variables in the input code, the memory trafﬁc can
+dominate the Jacobian computation. To back up this argument
+with some evidence, we rewrote the RC1 code so that each line
+of code contains at least two FLOPs, hence reducing the
+number of its intermediate variables from 150 to 80; then
+we differentiated it using TAPENADE’s forward vector mode.
+The size of the object ﬁle (as obtained by the Unix
+command size) was reduced from 28.32 to 14.65 KB.
+More importantly, the runtime ratio passed from 95.33 in
+Table 2 to 60.12; this represents an improvement of about
+37%. An even deeper investigation on the performance of
+TAPENADE’s forward vector mode by using a performance
+monitor or inspecting the generated assembler code, is
+beyond the scope of this paper. Note that in general,
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+0103 ‘1 ”Adv uo IoodJaAn 1o Anya/nun 7119an sauor Aaup/ls 19 610's19umolp101x0'|u[u100//:d11L1 won pap9o1umoa
+
+ 
+
+698 E. M. TADIOUDDINE
+
+ 
+
+assignments of a computer code contain on average three or
+four FLOPs and TAPENADE’s vector mode should show a
+better performance in comparison to that shown by the code—
+list programs in this work; see for example [43] wherein TAPE-
+NADE is used to compute the gradient of an objective function
+in an optimization problem.
+
+Furthermore, VE methods in contrast to TAPENADE’s vector
+mode are able to exploit the sparsity of the computation at
+compilation time. For the test cases we have considered, the
+best VE method produced a Jacobian code that is up to 39
+times faster than that produced by TAPENADE’s vector mode.
+Also, the Jacobian codes obtained by interface contraction out—
+performed those produced by other VE methods. The method
+VE—IC—SR consistently improved the performance of the
+VE—IC method. This is probably caused by an improved
+cache utilization that reduces the memory trafﬁc since the
+two methods produce codes with the same FLOPs count.
+The VE—IC—SR method produced codes that run up to 11%
+faster compared to those obtained by the nearest rival using
+the VE approach. This improvement can be explained by the
+fact that interface contraction exploits the graph structure in
+addition to exploiting the sparsity of the computation as the
+other VE methods.
+
+6. CONCLUDING REMARKS
+
+In this paper, we have reviewed the current graph techniques
+used for AD of functions represented as computer programs
+with a focus on the application of vertex—ordering algorithms.
+We have outlined two approximate algorithms designed to
+enhance the performance of the AD—generated code by
+vertex elimination: (i) A reordering scheme to help compilers
+achieve a fair trade—off between instruction—level parallelism
+and register usage. (ii) An interface contraction algorithm par—
+titions the computational graph into components suitable for
+the forward or reverse AD algorithms, hence exploiting the
+structure of the input code to be differentiated. Runtime
+results showed Jacobian codes obtained by interface contrac—
+tion and statement reordering are up to 11% faster compared
+to that of the nearest rival using the vertex—elimination
+approach and up to 39 times faster compared to that produced
+by the conventional AD forward vector mode.
+
+We have also discussed the idea of ﬁnding elimination
+sequences that minimize the FLOP count and the number of
+memory accesses in a single objective function in lieu of
+using ﬁll—reducing heuristics and then reordering the
+AD—generated code’s statements. Future work includes forma—
+lizing this approach for a generic processor and evaluating it
+for different platforms. An interesting question is to empiri—
+cally ﬁnd out the parameters involved in setting the objective
+function so as to generate ‘near—optimal’ elimination
+sequences in order to produce even faster derivative codes.
+
+ACKNOWLEDGEMENTS
+
+The author would like to thank Dr Shaun A. Forth and Dr John
+D. Pryce for their contributions in the statement—reordering
+scheme presented in this paper. The author is also grateful to
+the anonymous reviewers for comments on earlier drafts of
+this paper.
+
+FUNDING
+
+This work was partly supported by EPSRC under grant GR/
+R21882 at Cranﬁeld University.
+
+REFERENCES
+
+[1] Rall, LB. (1981) Automatic Differentiation: Techniques and
+Applications, Lecture Notes in Computer Science, VOl. 120.
+Springer, Berlin.
+
+[2] Griewank, A. (2000) Evaluating Derivatives: Principles and
+Techniques Of Algorithmic Differentiation, Frontiers in
+Applied Mathematics, VOl. 19. SIAM, Philadelphia, PA.
+
+[3] Tadjouddine, M., Forth, SA. and Qin, N. (2005) Elimination
+AD applied tO Jacobian assembly for an implicit compressible
+CFD solver. Int. J. Numer. Methods Fluids, 47, 1315—1321.
+
+[4] Bischof, C.H., Bijcker, H.M., Lang, B. and Rasch, A. (2003)
+
+Solving large—scale Optimization problems with EFCOSS.
+
+Adv. Eng. Soﬁw., 34, 633—639.
+
+HascOet, L., Vazquez, M. and Dervieux, A. (2003) Automatic
+
+Differentiation for Optimum Design, Applied tO Sonic Boom
+
+Reduction. Proc. ICCSA’2003, Montreal, Canada, May 18—
+
+21. Lecture NOtes in Computer Science, VOl. 2668. Springer,
+
+Berlin.
+
+Forth, S.A., Tadjouddine, M., Pryce, JD. and Reid, J.K. (2004)
+
+Jacobian cOde generated by source transformation and vertex
+
+elimination can be as efﬁcient as hand—coding. ACM Trans.
+
+Math. Softw., 30, 266—299.
+
+Griewank, A. and Reese, S. (1991) On the Calculation Of
+
+Jacobian Matrices by the Markowitz Rule. In Griewank, A.
+
+and Corliss, G.F. (eds), Automatic Dijferentiation of
+
+Algorithms: Theory, Implementation, and Application,
+
+pp. 126—135. SIAM, Philadelphia, PA.
+
+Bischof, CH. and Haghighat, MR. (1996) Hierarchical
+
+Approaches tO Automatic Differentiation. In Berz, M.,
+
+Bischof, C., Corliss, G. and Griewank, A. (eds),
+
+Computational Diﬂerentiation: Techniques, Applications, and
+
+Tools, pp. 83—94. SIAM, Philadelphia, PA.
+
+Tadjouddine, M., BOdman, F., Pryce, JD. and Forth, SA.
+
+(2005) Improving the Performance Of the Vertex Elimination
+
+Algorithm for Derivative Calculation. In Bijcker, M., Corliss,
+
+G., HOVland, P., Naumann, U. and Norris, B. (eds), Automatic
+
+Diﬂerentiation: Applications, Theory, and Implementations,
+
+Lecture NOtes in Computational Science and Engineering,
+
+VOl. 50, 111—120. Springer, Berlin, Germany.
+
+3
+H
+
+E
+H
+
+T]
+H
+
+[8
+
+H
+
+E
+H
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+0103 ‘1 ”Adv uo IoodJaAn 1o Anya/nun 7119an sauor Aaup/ls 19 610's19umolp101x0'|u[u100//:d11L1 won pap9o1umoa
+
+ 
+
+AD VERTEX ORDERING ALGORITHMs 699
+
+ 
+
+[10] TR 0300 (2004) TAPENADE 2.] User’s Guide. lNRIA Sophia
+AntipOlis, Route des LuciOles, 09902 Sophia AntipOlis, France.
+
+[11] Naumann, U. (1999) Efﬁcient calculation of Jacobian matrices
+by optimized application of the chain rule to computational
+graphs. PhD Thesis, Technical University of Dresden.
+
+[12] Naumann, U. (2004) Optimal accumulation of Jacobian
+matrices by elimination methods on the dual computational
+graph. Math. Program., 99, 399—421.
+
+[13] Yannakakis, M. (1981) Computing the minimum ﬁll—in is
+NP—complete. SIAM J. Alg. Disc. Meth., 2, 77—79.
+
+[14] Bornstein, C.F., Maggs, B.M. and Miller, G.L. (1999) TradeOffs
+Between Parallelism and ﬁll in Nested Dissection. SPAA’99:
+Proc. 11th Annual ACM Symp. on Parallel Algorithms and
+Architectures, Saint Malo, France, June 27—30, pp. 191—200.
+ACM Press, New York.
+
+[15] George, J. and Liu, J. (1978) An Automatic nested Dissection
+Algorithm for Irregular Finite Element Problems. SIAM
+J. Numer. Anal., 15, 345—363.
+
+[16] Markowitz, H. (1957) The elimination form of the inverse and
+its application. Manage. Sci., 3, 257—269.
+
+[17] Amestoy, P., Davis, T. and Duff, I. (1996) An approximate
+minimum degree ordering algorithm. SIAM J. Matrix Anal.
+Appl., 17, 886—905.
+
+[18] Goedecker, S. and HOisie, A. (2001) Performance Optimization
+of Numerically Intensive Codes. SIAM, Philadelphia.
+
+[19] Tadjouddine, M., Forth, S.A., Pryce, JD. and Reid, J.K. (2002)
+Performance Issues for Vertex Elimination Methods in
+Computing Jacobians Using Automatic Differentiation. Proc.
+2nd Int. Conf Computational Science, Amsterdam, The
+Netherlands, April 21—24, LNCS, Vol. 2330, 1077—1086.
+Springer, Berlin.
+
+[20] Gupta, A. (1997) Fast and effective algorithms for graph
+partitioning and sparse—matrix ordering. IBM J. Res. Dev., 41,
+171 — 183.
+
+[21] Chapman, B. and Zima, H. (1991) Supercompilers for Parallel
+and Vector Computers. Addison—Wesley Publishing Company,
+Boston, USA.
+
+[22] TR 698 (1995) Combining Register Allocation and Instruction
+Scheduling: (Technical Summary). Courant Institute,
+New York University, New York, US.
+
+[23] GIT—CC—01—15 (2001) Cache Sensitive Instruction Scheduling.
+Center for Research in Embedded Systems and Technologies,
+Georgia Institute of Technology, Atlanta, Georgia.
+
+[24] Hennessy, J. and Gross, T. (1983) Postpass code optimization of
+pipeline constraints. ACM TOPLAS, 5, 422—448.
+
+[25] Palem, K. and Simons, B. (1993) Scheduling time—critical
+instructions on RISC machines. ACM TOPLAS, 15, 632—658.
+
+[26] Leung, A., Palem, K.V. and Ungureanu, C. (1997) Run—time
+versus compile—time instruction scheduling in superscalar
+(RISC) processors: Performance and trade—off. J. Parallel
+Dist. Comput., 45, 13—28.
+
+[27] AUCS/TRO702 (2007) Fast AD Jacobians by compact LU
+factorization. University of Aberdeen, Computing Sciences
+Departement, Aberdeen, AB243UE, UK.
+
+[28] Muchnick, SS. (1997) Advanced Compiler Design and
+Implementation. Morgan Kaufmann Publishers, San Francisco,
+USA.
+
+[29] Bernstein, D. and Gertner, I. (1989) Scheduling expressions on a
+pipelined processor with a maximum delay of one cycle. ACM
+TOPLAS, 11, 57—66.
+
+[30] Cofman, E. and Graham, R. (1972) Optimal scheduling for
+two—processor systems. Acta Informatica, 1, 200—213.
+
+[31] Gabow, H.N. and Tarjan, RE. (1983) A Linear—Time Algorithm
+for a Special Case of Disjoint Set Union. ACM Symposium on
+Theory of Computing (STOC ’83), Boston, MA, May 25—27,
+pp. 246—251. ACM Press, Baltimore, USA.
+
+[32] Iri, M. (1991) History of Automatic Dijferentiation and
+Rounding Estimation. In Griewank, A. and Corliss, G.F. (eds),
+Automatic Dijferentiation of Algorithms: Theory,
+Implementation, and Application, 1—16. SIAM, Philadelphia,
+PA.
+
+[33] BILicker, HM. (2005) Looking for narrow interfaces in
+automatic differentiation using graph drawing. Future Gener.
+Comput. Syst., 21, 1418—1425.
+
+[34] Tadjouddine, M., Forth, SA. and Pryce, JD. (2003)
+Hierarchical Automatic Differentiation by Vertex Elimination
+and Source Transformation. Proc. ICCSA 2003, Montreal,
+Canada, May 18—21, Lecture Notes in Computer Science,
+Vol. 2668, pp. 115—124. Springer, Berlin.
+
+[35] Hendrickson, B. and Leland, R. (1995) A Multilevel Algorithm
+for Partitioning Graphs. Supercomputing ’95 Proc. 1995 ACM/
+IEEE Supercomputing Conf, San Diego, CA, December 3—8.
+ACM Press, New York.
+
+[36] RR—1264—01 (2001) SCOTCH 3.4 User’s Guide. LaBRI,
+Université de Bordeaux, 351 Cours de la Liberation, 33405
+Talence, France.
+
+[37] Karypis, G. and Kumar, V. (1998) Multilevel k—way partitioning
+scheme for irregular graphs. J. Parallel Dist. Comput., 48, 96—
+129.
+
+[38] UC—405 (1999) CHACO: Algorithms and Software for
+Partitioning Meshes. Computation, Computers, and Math
+Center, Sandia National Laboratories, Albuquerque, NM, US.
+
+[39] Liu, J.W.H. (1989) A graph partitioning algorithm by node
+separators. ACM Trans. Math. Softw., 15, 198—219.
+
+[40] Knuth, DE. (1997) The Art of Computer Programming, Volume
+I: Fundamental Algorithms. Addison—Wesley, Reading, MA.
+
+[41] Karypis, G. and Kumar, V. (1998) Multilevel Algorithms for
+Multi—constraint Graph Partitioning. Supercomputing ’98
+Proc. 1998 ACM/IEEE conf Supercomputing, San Jose, CA,
+November 7—13, pp. 1—13. IEEE Computer Society,
+Washington, DC.
+
+[42] Simon, H.D. and Teng, S.—H. (1997) How good is recursive
+bisection? SIAM J. Sci. Comput., 18, 1436—1445.
+
+[43] Tadjouddine, M., Forth, S. and Qin, N. (2005) Automatic
+Dijferentiation of a Time-Dependent CFD Solver for
+Optimisation of a Synthetic Jet. Proc. Int. Conf Numerical
+Analysis and Applied Maths, Rhodes, Greece, September
+16—20, 514—517. Wiley—VCH, Berlin.
+
+ 
+
+THE COMPUTER JOURNAL, Vol. 51 No. 6, 2008
+
+ 
+
+0103 ‘1 ”Adv uo IoodJaAn 1o Anya/nun 7119an sauor Aaup/ls 19 610's19umolp101x0'|u[u100//:d11L1 won pap9o1umoa
+

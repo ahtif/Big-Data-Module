@@ -1,0 +1,787 @@
+1
+
+ 
+
+Improving the Performance of the Vertex
+Elimination Algorithm for Derivative
+Calculation"
+
+M. Tadjouddinel, F. Bodman2, J.D. Pryce2, and S.A.Forth1
+
+1 Applied Mathematics & Operational Research, ESD
+Cranﬁeld University (RMCS Shrivenham), Swindon SN6 8LA, UK
+{M.Tadjouddine, S.A.Forth}©cranfield.ac.uk
+
+2 Department of Information Systems,
+Cranﬁeld University (RMCS Shrivenham), Swindon SN6 8LA, UK
+j .d.pryce©cranfield. ac.uk
+
+Summary. In previous work [TOMS, 2004, 30(3), 2667299], we used Markowitz—
+like heuristics aiming to ﬁnd elimination sequences that minimise the number of
+ﬂoating—point operations (ﬂops) for vertex elimination Jacobian code. We also used
+the depth—ﬁrst traversal algorithm to reorder the statements of the Jacobian code
+with the aim of reducing the number of memory accesses. In this work, we study the
+effects of reducing ﬂops or memory accesses within the vertex elimination algorithm
+for Jacobian calculation. On RISC processors, we observed that for data residing in
+registers, the number of ﬂops gives a good estimate of the execution time, while for
+out—of—register data, the execution time is dominated by the time for memory access
+operations. We also present a statement reordering scheme based on a greedy—list
+scheduling algorithm using ranking functions. This statement reordering will enable
+us to trade—off the exploitation of the instruction level parallelism of such processors
+with the reduction in memory accesses.
+
+Key words: vertex elimination, Jacobian accumulation, performance analy—
+sis, statement reordering, greedy—list scheduling algorithms
+
+1.1 Introduction
+
+Many scientiﬁc applications require the ﬁrst derivatives (at least) of a func—
+tion f : x E R” >—> y E Rm represented by computer code. This can be
+obtained using automatic differentiation (AD)[1, 2]. We assume the function
+code has no loops or branches; alternatively, our work applies to basic blocks of
+more complicated code. From the program, we build up the data dependence
+
+*This work was partly supported by EPSRC under grant GR/R21882
+
+2 Tadj ouddine et al.
+
+graph (DDG), or computational graph, of the function f as a Directed Acyclic
+Graph (dag) G:(V,E), with vertex—set V and edge—set E. A vertex 1},- rep—
+resents a ﬂoating—point assignment of the original code; an edge (15,15) 6 E
+represents the data dependence relationship vj < 1),- meaning vj appears on
+the right hand side of the assignment that computes 11,-. Logically, E and the
+relation < are the same. Code may contain overwrites of variables; we assume
+these removed by converting to Static Single Assignment form [3], so that
+a variable may be identiﬁed with the statement that computes it. We have
+|V|:n+p+m:N where n,p,m are respectively the number of independent,
+intermediate and dependent vertices. We ‘linearise’ G by labelling its edges
+with local partial derivatives. Finally, we eliminate, in some order termed the
+elimination sequence, all intermediate vertices so that G is rendered bipartite.
+This process, the vertem elimination approach, can be found in [2, 4, 5, 6].
+
+As shown in [2, 4], the linearised graph G can be viewed as an N X N sparse
+lower triangular matrix C:(cij) and CiIN is called the attended Jacobian.
+The Jacobian J can be obtained by solving a sparse, triangular linear system
+with coefﬁcient matrix CiIN using some form of Gaussian elimination.
+
+Since [9, the number of intermediate vertices, tends to be large even in
+medium—sized applications, the performance of the vertex elimination algo—
+rithm can be degraded by ﬁll—in. The ﬂoating point operations (flops) per—
+formed, and the ﬁll—in, are determined by the elimination sequence. The ques—
+tion one would ideally like to answer is “Which elimination sequence gives the
+fastest code on a particular platform?”. As a platform—independent approxi—
+mation to this problem one may ask “Which elimination sequence minimises
+ﬁll—in [respectively flop—count]?”. For a sparse symmetric positive deﬁnite sys—
+tem of linear equations, the ﬁll—in problem is NP—complete [7] and it is sus—
+pected the same holds for our problem. Therefore, in practice a near—optimal
+sequence must be found by some heuristic algorithm. Our premiss is that such
+sequences allow us to generate faster Jacobian code.
+
+Goedecker and Hoisie [8] report that performance of numerically intensive
+codes on many processors is a low percentage of nominal peak performance.
+There is a gap between CPU performance growth (around 55% per year) and
+memory performance growth (about 7% per year) [9].
+
+To enhance performance, it would appear crucial to keep the memory
+trafﬁc low. In this paper, we study two aspects of the vertex elimination al—
+gorithm. First, we study how the number of ﬂoating point operations in the
+Jacobian code relates to its performance on various platforms. Second, we
+study how reordering the statements of the Jacobian code affects memory
+accesses and register usage. For these purposes, we generated Jacobian codes
+using MarkowitZ—like strategies and statement reordering and inspected the
+assembler from different processors and compilers. We studied how the exe—
+cution time is affected by the number of flops, and amount of memory trafﬁc
+(loads and stores). We observed:
+
+1 Performance of the Vertex Elimination Algorithm 3
+
+o A reordering of the Jacobian code’s statements can improve its perfor—
+mance by a signiﬁcant percentage when this reduces the memory trafﬁc.
+
+0 For in—register data, the execution time is dominated by the number of
+ﬂoating point operations and a reduction of ﬂoating point operations gave
+further performance improvement.
+
+0 For out—of—register data, the execution time is dominated by the number
+of load and store operations and a reordering that reduced these memory
+access operations enhances Jacobian code performance.
+
+Similar behaviour is found in performance analysis of other numerical codes,
+see for example [8]. This paper presents the argument in the context of se—
+mantic augmentation of numerical codes as is carried out in AD of computer
+programs. We also describe planned work to improve performance of Jaco—
+bian code, produced by vertex elimination, by reordering the statements using
+standard instruction scheduling algorithms.
+
+1.2 Heuristics
+
+Solving large linear systems by Gaussian elimination can be prohibitive due to
+the amount of ﬁll—in. As said above, heuristic approximate solutions are used
+to the NP—complete problem of ﬁnding an elimination ordering to minimise
+ﬁll—in. Over the past four decades several heuristics aimed at producing low—
+ﬁll orderings have been investigated. These algorithms have the desired effects
+of reducing work as well. The most widely used are nested dissection [10, 11]
+and minimum degree: the latter, originating with the Markowitz method [12],
+is for example studied in [13].
+
+Nested dissection, ﬁrst proposed in [11], is a recursive algorithm which
+starts by ﬁnding a balanced separator. A balanced separator is a set of ver—
+tices that when removed partition the graph into two or more components,
+each composed of vertices whose elimination does not create ﬁll—in in any of
+the other components. Then the vertices of each component are ordered, fol—
+lowed by the vertices in the separator. Unlike nested dissection that examines
+the entire graph before reordering it, the minimum degree or MarkowitZ—like
+algorithms tend to perform local optimisations. At each elimination step, such
+a method selects a vertex with minimum cost or degree, eliminates it and looks
+for the next vertex with the smallest cost in the new graph.
+
+As described in [4, 14], we built up the linearised computational graph in
+the following two ways:
+
+1. Statement Level (SL) in which local derivatives are computed for each
+statement, no matter how complex its right—hand side.
+
+2. Code List (CL) in which local derivatives are computed for each statement
+after the code has ﬁrst been rewritten so that each statement performs a
+single unary or binary operation.
+
+Then, we applied the following heuristics [4, 5] to the resulting graphs:
+
+4 Tadj ouddine et al.
+
+Forward: where intermediate vertices are eliminated in forward order.
+Reverse: where intermediate vertices are eliminated in reverse order.
+Markowitz: at each elimination stage a vertex W of smallest Markowitz
+cost is eliminated. This cost is deﬁned as the product of the number of
+predecessors of W times the number of its successors in the current, partly
+eliminated, graph .
+
+o VLR: as Markowitz but using the VLR cost function deﬁned by
+
+VLR(11]-) : mark(vj)ibias(vj),
+
+with bias(vj) a ﬁxed value for vj, namely the product of the number of
+independent vertices and the number of dependent vertices that W is con—
+nected to.
+
+c Any of the above with Pre—elimination: vertices with single successor are
+eliminated ﬁrst and then one of Forward, Reverse, Markowitz or VLR
+order is applied to those remaining.
+
+We also used a Depth—First Traversal (DFT) algorithm [14] to reorder state—
+ments of the obtained Jacobian code, without altering dependencies between
+statements, in the hope of further performance improvement.
+
+1.3 Performance Analysis
+
+We consider two of the test problems reported in [4]: the Human Heart
+Dipole (HHD) from the Minpack 2 test suite [15] and the Roe ﬂux cal—
+culation (ROE) [16]. These routines were differentiated using the AD tool
+ELIAD [4, 14] using the heuristics listed in Section 1.2. All the Jacobian
+codes were compiled on different platforms with maximum optimisation level,
+and run for a number of times carefully calculated for each platform [4].
+
+To assess the performance of the ELIAD generated Jacobians, we studied
+the assembler from different platforms, counting the number of loads, stores
+and ﬂops (‘L’, ‘S’ and ‘Flops’ in the tables) after compiler’s optimisations.
+
+Table 1.1 shows the results of our study from the SUN Ultra 10 processor
+with 440 MHZ, 32 KB L1 cache, 2 MB L2 cache, and using the Workshop
+f90 6.0 Compiler. The observed time Obs—Time is the CPU time obtained by
+averaging a certain number of evaluations and runs, see [4] for details.
+
+Table 1.2 shows some runtime predictions using a very simple model ap—
+proximating the runtime via the memory access count and the ﬂops count.
+This approximate model estimates the following quantities: TF, the time taken
+by the ﬂoating point operations
+
+F1
+TF ops X cycle time X latency (1.1)
+
+: ﬂops rate
+
+and TM, the time taken by memory access operations
+
+1 Performance of the Vertex Elimination Algorithm 5
+
+Table 1.1. Performance data for the HHD and the Roe ﬂux test cases on the Ultra10
+platform, Obs—Time in ,us
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+HHD ROE
+Technique Obs—Time Flops L+S Obs—Time Flops L+S
+VE—SL—F 0.77 150 179 11.38 1732 2489
+VE—SL—R 0.79 148 188 7.26 1432 1600
+VE—CL—F 0.73 150 184 16.57 1843 3406
+VE—CL—R 0.80 148 201 6.98 1496 1655
+VE—SLP—F 0.83 172 205 6.64 1580 1718
+VE—SLP—R 0.73 172 182 6.11 1382 1626
+VE—CLP—F 0.72 150 174 6.24 1580 1662
+VE—CLP—R 0.71 148 182 5.81 1382 1609
+VE—SLP—F—DFT 0.78 168 214 7.49 1584 1855
+VE—SLP—R—DFT 0.66 164 180 5.73 1382 1466
+VE—CLP—F—DFT 0.80 168 200 7.42 1587 1923
+VE—CLP—R—DFT 0.66 164 167 5.84 1387 1305
+VE—SLP—Mark 0.69 150 181 6.91 1524 1803
+VE—CLP—Mark 0.83 168 214 5.71 1365 1507
+VE—SLP—V 0.69 150 181 7.40 1524 1824
+VE—CLP—V 0.83 168 214 6.17 1364 1503
+VE—SLP—M—DFT 0.73 150 184 8.03 1529 1958
+VE—CLP—M—DFT 0.80 168 200 6.19 1366 1375
+VE—SLP—V—DFT 0.73 150 184 7.58 1532 1945
+VE—CLP—V—DFT 0.80 168 200 5.59 1369 1362
+TM : (L + S) X cycle time X latency. (1.2)
+
+memory access rate
+
+The Ultra 10 processor can perform up to 2 ﬂops per cycle (its ﬂops rate is
+2) with a latency of 4 cycles and 1 load or 1 store (its memory access rate is
+1) with a latency of 2 cycles, and uses in—order execution [17] of instructions.
+
+In Table 1.2, we represent the performance measures for a sample of meth—
+ods shown in Table 1.1. The column ‘Nom. ﬂops7 is the nominal ﬂops count
+obtained from the source text. This table illustrates the following observations:
+
+0 A small reduction of ﬂops count does not necessarily imply a reduction of
+the actual runtime Obs—time.
+TM tends to be a better estimate of Obs—time than is TF.
+The statement reordering improved performance when it reduced the num—
+ber of memory accesses.
+
+These results have led us to believe that the runtime is more correlated
+with the memory accesses (loads and stores) than with the ﬂops count. To
+further investigate this, we performed a linear regression analysis using the
+regress function of MATLAB’s statistics toolbox [18]. For both test cases in
+Table 1.1, we form the linear model:
+
+T:aX+b+E (1.3)
+
+6 Tadj ouddine et al.
+
+Table 1.2. A sample of VE applied to Roe ﬂux on the Ultra 10
+
+ 
+
+Technique Nom. ﬂops Flops L+S TF TM Obs—time
+VE—CLP—M—DFT 1462 1366 1375 4.65 6.26 6.19
+VE—CLP—V—DFT 1578 1369 1362 4.68 6.20 5.59
+
+ 
+
+ 
+
+VE—CLP—F 1742 1580 1662 5.40 7.56 6.24
+VE—CLP—F—DFT 1742 1587 1923 5.40 8.74 7.42
+VE—SLP—R 1505 1382 1626 4.71 7.40 6.11
+
+VE—SLP—R—DFT 1505 1382 1466 4.71 6.66 5.73
+
+ 
+
+ 
+
+in which X represents the vector of ﬂops or memory accesses (loads + stores),
+I) a constant vector, 6 a residual vector and a a vector of parameters. Ta—
+ble 1.3 shows the ‘explained variability7 that is one of the statistics returned
+by regress, and the norm of the residual E from the regression.
+
+Table 1.3. MATLAB7s regress results of the regression analysis of data of Table 1.1
+
+ 
+
+Model variability I] 5 I ] 2
+T = alFlops + In + 51 0.87 8.7
+T : a2(L+S) -]- b2 -]- 62 0.99 3.2
+
+ 
+
+ 
+
+ 
+
+The ﬂops explain about 87% of the variability in the observed time T,
+whereas the loads and stores explain about 99%. Furthermore, the (loads
+and stores) model has a better residual compared to the ﬂops model. It is
+important to reduce the ﬂops count in numerical calculations but it is even
+more crucial to minimise memory traﬂic. These experiments suggest consid—
+eration of code reordering techniques, data structures, and other optimisation
+techniques that reduce the amount of memory accesses if we aim to generate
+eﬂicient derivative code even for medium—sized applications.
+
+1.4 A Statement Reordering Scheme
+
+In [4, 14], we used a Statement Reordering Algorithm (SRA) based on G’, the
+DDG of the statements of the derivative code. By depth ﬁrst traversal, for
+each statement 5 it tries to place the statements on which 5 depends, close to
+s. It was hoped this would speed up the code by letting the compiler perform
+better register usage since, in our test cases, cache misses were shown not
+to be a problem [14]. The beneﬁts were inconsistent, probably because this
+does not account for the instruction level parallelism of modern cache—based
+machines and the latencies of certain instructions.
+
+In this work, we plan to encourage the compiler to exploit instruction level
+parallelism and use registers better, by a SRA that gives priority to certain
+statements via a ranking function. The compiler’s instruction scheduling and
+register allocation work on a dependency graph Gll whose vertices are machine
+code instructions. We have no knowledge of G”, so we work on the DDG G/ on
+
+1 Performance of the Vertex Elimination Algorithm 7
+
+the premiss that our ‘preliminary’ optimisation will help the compiler generate
+optimised machine code. In the next sections, we shall use the instruction
+scheduling approach used in for instance [19], and the ranking function ideas
+of [17, 20, 21, 22] on a simple virtual processor.
+
+1.4.1 The Processor Model
+
+We consider the following simple model of a superscalar machine, similar to
+that of [23]. It has an unlimited number of ﬂoating—point (and other) ‘regis—
+ters’. It has one pipelined functional unit (FU) that can perform any scalar
+assignment—statement in our code, however complicated, in 2 clock cycles, in—
+cluding loading any number of operands from registers, computing, and storing
+the result in a register. An assignment—statement that does no processing (a
+simple copy) is assumed to take 1 cycle. A statement can be issued to the
+FU at each cycle, however data dependencies may ‘stall’ it: e.g. if the code
+c=a*b; d=a+c is begun at time t : 0 , we cannot issue the second statement
+at t : 1 because c is not yet available.
+
+We develop an algorithm that, within this model, tries to remove stalling
+by re—ordering code statements. Coarse—grained though the model is, we hope
+it imitates enough relevant behaviour of current superscalar architectures, to
+produce re—orderings that give speedup in practice.
+
+1.4.2 The Derivative Code and its Evaluation
+
+Since the original code was assumed branch— and loop—free the same is true
+of the derivative code. It includes original statements 11,- of f 7s code as well
+as statements to compute the local derivatives cij that are the nonzeros of
+the extended Jacobian C before elimination. But the bulk of it is elimination
+statements. As originally deﬁned in [6], these take the basic forms cij : cikckj
+or cij : cij + cikckj, and typically a cij position is ‘hit’ (updated) more
+than once, needing non—trivial renaming of variables to put it into the needed
+single—assignment form.
+
+Though not strictly necessary, we assume the VE process has been rewrit—
+ten in ‘one hit7 form, e.g. by the inner product approach of [24]. That is, that
+each cij occurring in it is given its ﬁnal value in a single statement, of the form
+either cij :: cg- + ZkeK cikckj if updating an original elementary derivative,
+or cij :: ZkeK cikckj if creating ﬁll—in. Here K is a set of indices that depends
+on i,j and on the elimination order used, and c%- stands for an expression that
+computes the elementary derivative, 81),- /811j. The result is that the derivative
+code is automatically in single—assignment form.
+
+Its graph G/ : (V’, <’) 7 where V/ is the set of statements and <’ the
+data dependence relationship 7 is a dag. A schedule 7r for G/ assigns to each
+statement (denoted s in this section) a start—time in clock—cycle units, respect—
+ing data dependencies subject to the constraints of our processor model. It is
+a one—to—one (as the FU only does one statement at a time) mapping of V/ to
+
+8 Tadj ouddine et al.
+
+the integers {0, 1, 2, - - -}. Write t(s) for the execution time of s (1 or 2 in our
+model). Then to respect dependencies it is necessary and suﬂicient that:
+
+sl < 52 ? 7r(sl) +t(sl) S 77(82). (1.4)
+for sl and 52 in V’. The completion time of 7r is
+
+T(7r) : péa/x{7r(s) + t(s)}. (1.5)
+
+Our aim is to ﬁnd 7r to minimise the quantity T(7r) subject to (1.4). This
+optimisation problem is NP—hard [19, 25].
+
+1.4.3 The DDG of the derivative code
+
+The classical way of constructing the derivative code’s DDG would be to
+
+parse the code, build up an abstract representation and deduce the depen—
+
+dences between all statements, see for instance [26, 25]. Since derivative code
+
+is generated from function—code, its DDG can be constructed more easily by
+
+using data that is available during code generation. We omit details here.
+Consider the code fragment of Fig. 1.1. A code fragment
+
+Fig. 1.1. Its computational graph is
+
+7171 = 561
+represented by the dag G on the left [,0 : :32
+of Fig. 1.2, with, on the right, the 111 : sin(110)
+extra edges produced on eliminat— 112 : 111 1 1, 1
+ing the intermediates 111 and 112 in 113 : 11 1 * 1,2
+that order. [,4 : M
+
+Fig. 1.2. Graph augmentation process: eliminated vertices are kept and ﬁll—in is
+represented by dashed arrows
+
+   
+
+0
+
+(a) Original computational graph (b) Augmented computational graph
+
+The left of Figure 1.3 shows derivative code from Figure 1.1, with a some—
+what arbitrary order of the statements respecting dependencies. Note one
+
+1 Performance of the Vertex Elimination Algorithm 9
+
+Fig. 1.3. The data dependence graph of the derivative code from the original dag
+on the the left of Fig. 1.2
+
+  
+
+ 
+
+ 
+
+1: 71,1 : $1
+2: 710 : $2 3
+3: 021 : 1
+4: 02,71 : —1
+5: 711 = sin(7jo)
+6: cm = cos(7jo) 2
+7: 712 : 711 — 7171
+8: C41 : 1/(2ﬂ)
+9: 713 = 7111712 . 0
+10: 032 : 7171
+11: 714 : ﬂ 1
+121 020 : 021010
+131 03,71 : 712 +03202,71
+14: 030 = 032020
+151 C40 : 041010
+0
+
+.4
+
+statement, #13, that combines computation of an elementary derivative with
+elimination. On the right is its DDG, which can be constructed direct from the
+elimination order and the original graph on the the left of Fig. 1.2. (It could
+be made smaller by propagating the constant values C211 and 621.) Edges out
+of statement 5 are labelled by the value (t(s) 7 1), i.e. 0 or 1 representing the
+time delay imposed by s, in our processor model.
+
+The depth—ﬁrst traversal approach of [4, 14] gave the following schedule:
+
+ 
+
+m: |2|5| |8|6| |15|3|12|1|10|14|7|4|13|11|9| |
+
+ 
+
+7r1 contains 2 idle cycles and takes 18 cycles to complete including a cycle at
+the end: T(7r1) : 18. In Sect. 1.5, we produce a schedule that takes 16 cycles,
+the minimum possible. This new schedule combines the depth—ﬁrst traversal
+property and the instruction level parallelism of pipelined processors via a
+ranking function.
+
+1.5 A Greedy List Scheduling Algorithm
+
+We use a greedy list scheduling algorithm as investigated in [21, 23]. We
+ﬁrst preprocess the dag G/ to compute a ranking function that deﬁnes the
+relative priority of each vertex. Then a modiﬁcation of the labelling algorithm
+of [23, 27] is used to iteratively schedule the vertices of G’.
+
+Our ranking function uses the assumption that operations with more suc—
+cessors and which are located in a longer path should be given priority, being
+
+10 Tadj ouddine et al.
+
+likely to execute with a minimum delay and to affect more operations in the
+rest of the schedule. We use the functions height(1)),depth(1)) deﬁned to be
+the length of the longest path from 1) to an input (minimal) vertex and to an
+output (maximal) vertex respectively. height(1)) is deﬁned by
+
+1. for each input (minimal) vertex 1), height(1)) : 0:
+2. for each other 1) E V’, height(1)) : 1 + max{height(u)), for all u) > 1)}.
+
+depth(1)) is deﬁned in the obvious dual way. For a vertex 1) E V’ we deﬁne the
+ranking function by
+
+rank(1)) : a * depth(1)) + b * succ(1)). (1.6)
+
+where succ(1)) is the number of successors of 1) and a, b weights chosen on the
+basis of experiment. For b : 0, we recover the SRA using depth—ﬁrst traversal
+as in [4, 14]. By combining the values depth(1)) and succ(1)), we aim to trade
+off between exploiting instruction level parallelism of modern processors and
+minimising register pressure.
+
+The preprocessing phase of our algorithm is as follows.
+
+1. Compute the heights and depths of the vertices of G’.
+2. Compute the ranks of the vertices as in (1.6).
+
+The iterative phase of the algorithm schedules the vertices of GI in de—
+creasing order of rank. It constructs the mapping 7r deﬁned in Sect. 1.4.2 by
+combining the rank of a vertex and its readiness using the following rule:
+
+Rule 1
+A uerter 1) is ready to be scheduled if it has no predecessor or if all its prede—
+cessors have already completed.
+
+This ensures data on which the vertex 1) depends is available when 1) is sched—
+uled.
+Ties between vertices are broken using the following rule:
+
+Rule 2
+Among vertices of the same rank choose those with the minimum height.
+Among those of the same height, pick the ﬁrst.
+
+The core of the scheduling procedure is as follows:
+
+1. Schedule ﬁrst an input vertex 1) with the highest rank (break ties using
+Rule 2). That is, set time T : 0 and 7r(1)) : T.
+
+2. For T > 0, let 1) be the last vertex that was scheduled at times < T.
+a) Extract from the set of so far unscheduled vertices, the set A as follows:
+
+5(1)):{1U:u)>1)}
+
+If 5(1)) is nonempty, set
+
+3(1)) : {u : height(u) < max{height(u)) for u) E S(1))}},
+A : 5(1)) U 3(1)):
+
+Otherwise
+A : the set of remaining vertices.
+
+1 Performance of the Vertex Elimination Algorithm 11
+
+b) Extract from A, the set of vertices R that are ready to be scheduled.
+c) If R is empty, do nothing (a no—op at this cycle). Otherwise, choose
+from R a vertex 1) with maximum rank (break ties by Rule 2), and set
+7r(1)) : T.
+d) Set 7' : T + 1.
+3. Repeat step 2 until all vertices are scheduled.
+
+We can easily check that this algorithm determines a schedule 7r that satisﬁes
+
+(1.4), thus preserving the data dependences between vertices of the graph.
+Let us apply this algorithm to the DDG of Fig. 1.3. We ﬁrst compute the
+
+height, depth and rank of each vertex using the coeﬂicients a : b : 1:
+
+ 
+
+ 
+
+vertex 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+height 0 0 0 0 1 1 2 2 3 1 2 2 3 3 3
+depth 2 3 2 1 2 2 1 1 0 1 0 1 0 0 0
+succ 3 2 1 1 3 2 2 1 0 2 0 1 0 0 0
+rank 5 5 3 2 5 4 3 2 0 3 0 2 0 0 0
+
+ 
+
+ 
+
+To label the dag of Fig. 1.3, the algorithm starts with the input vertices and
+assigns 7r(1) : 1. Next it forms the set A : {2, 3, 4,5,6,7,8,10,11,12} of
+available statements, and the set R : {2, 3, 4, 10} of ready statements. Using
+the ranking list, it assigns 7r(2) : 2: etc. The result of this algorithm for the
+dag of Fig. 1.3 is the following optimal schedule without idle cycles:
+
+ 
+
+W2: |1|2|5|6|10|3|4|7|12|8|11|13|9|14|15| |
+
+ 
+
+We observe that the completion time T(7r2) : 16, better than T(7r1). The
+complexity of this labelling algorithm, which is similar to that of [23, 27] for
+a dag with n vertices and c edges, was initially proved to be 0(n2) [23, 27]
+and can be implemented in O(n + c) as shown in [28].
+
+1.6 Conclusions and Further Work
+
+We have presented a detailed performance analysis of Jacobian calculations
+using the vertex elimination algorithm. We have shown that for even medium—
+sized numerical applications the execution time is very much correlated with
+the memory accesses than with the number of ﬂoating point operations. We
+pointed out that though the vertex elimination algorithm reduced the number
+of ﬂoating point operations, it should be coupled with instruction scheduling
+heuristics to enable exploitation of the superscalar nature of modern proces—
+sors so as to maximise the performance of the derivative code.
+
+For that purpose, we described a statement reordering scheme based on
+a ranking function. We plan to implement it and test it using medium—sized
+problems on a range of superscalar processors. We may also look at ways of
+combining the two objectives of reducing ﬂops and memory accesses in a single
+objective function.
+
+12
+
+Tadj ouddine et al.
+
+Acknowledgements
+
+The authors would like to thank Prof. J.K. Reid for enlightening discussions
+and one of the referees for thorough reading of our paper, many useful com—
+ments and suggestions.
+
+References
+
+10.
+
+11.
+
+12.
+
+13.
+
+14.
+
+. Rall, L.B.: Automatic Differentiation: Techniques and Applications. Volume
+
+120 of Lecture Notes in Computer Science. Springer—Verlag, Berlin (1981)
+
+. Griewank, A.: Evaluating Derivatives: Principles and Techniques of Algorithmic
+
+Differentiation. Number 19 in Frontiers in Appl. Math. SIAM, Philadelphia,
+Penn. (2000)
+
+. Cytron, R., Ferrante, J., Rosen, B.K., Wegman, M.N., Zadeck, F.K.: Efﬁciently
+
+computing static single assignment form and the control dependence graph.
+ACM Transactions on Programming Languages and Systems 13 (1991) 4517
+490
+
+. Forth, S.A., Tadjouddine, M., Pryce, J.D., Reid, J.K.: Jacobian code generated
+
+by source transformation and vertex elimination can be as efﬁcient as hand—
+coding. ACM Transactions on Mathematical Software 30 (2004) 2667299
+
+. Naumann, U.: Efﬁcient Calculation of Jacobian Matrices by Optimized Ap—
+
+plication of the Chain Rule to Computational Graphs. PhD thesis, Technical
+University of Dresden (1999)
+
+. Griewank, A., Reese, S.: On the calculation of Jacobian matrices by the
+
+Markowitz rule. In Griewank, A., Corliss, G.F., eds.: Automatic Differentiation
+of Algorithms: Theory, Implementation, and Application. SIAM, Philadelphia,
+Penn. (1991) 1267135
+
+. Yannakakis, M.: Computing the minimum ﬁll—in is NP—complete. SIAM J. Alg.
+
+Disc. Meth. 2 (1981) 77779
+
+. Goedecker, S., Hoisie, A.: Performance Optimization of Numerically Intensive
+
+Codes. SIAM Philadelphia (2001)
+
+. Gropp, W., Kaushik, D., Keyes, D., Smith, B.: Improving the prefor—
+
+mance of sparse matrix—vector multiplication by blocking. Technical re—
+port, MCS Division, Argonne National Laboratory (Unknown year) See
+www-fp.mcs .anl.gov/petsc-med/Talks/multivec_siam00_1.pdf.
+
+Bornstein, C., Maggs, B., Miller, G.: Tradeoffs between parallelism and ﬁll in
+nested dissection. In: Proceedings of the SPAA799, ACM (1999)
+
+George, J ., Liu, J .: An automatic nested dissection algorithm for irregular ﬁnite
+element problems. SIAM Journal of Numerical Analysis 15 (1978) 3457363
+Markowitz, H.: The elimination form of the inverse and its application. Man—
+agement Science 3 (1957) 2577269
+
+Amestoy, R, Davis, T., Duff, 1.: An approximate minimum degree ordering
+algorithm. SIAM J. Matrix Anal. Applic. 17 (1996) 8867905
+
+Tadjouddine, M., Forth, S.A., Pryce, J.D., Reid, J.K.: Performance issues for
+vertex elimination methods in computing Jacobians using automatic differenti—
+ation. In Sloot, P.M., ed.: Proceedings of the Second International Conference
+on Computational Science. Volume 2 of LNCS., Amsterdam, Springer—Verlag
+(2002) 107771086
+
+15.
+
+16.
+
+17.
+
+18.
+
+19.
+
+20.
+
+21.
+
+22.
+
+23.
+
+24.
+
+25.
+
+26.
+
+27.
+
+28.
+
+1 Performance of the Vertex Elimination Algorithm 13
+
+Averick, B.M., Carter, R.G., More, J.J., Xue, G.L.: The MINPACK—2 test prob—
+lem collection. Preprint MCS7P1534)692, ANL/MCS7TM7150, Rev. 1, Mathe—
+matics and Computer Science Division, Argonne National Laboratory, Argonne,
+Ill. (1992) See ftp://info.mcs.anl.gov/pub/MINPACK-2/tprobs/P153.ps.Z.
+Roe, P.L.: Approximate Riemann solvers, parameter vectors, and difference
+schemes. Journal of Computational Physics 43 (1981) 3577372
+
+Hardnett, C., Rabbah, R., Palem, K., Wong, W.: Cache sensitive instruction
+scheduling. Technical Report CREST—TR—01—003, GIT—CC—01—15, Center for
+Research in Embedded Systems and Technologies (2001)
+
+The Mathworks Inc: Statistics Toolbox Users Guide, Version 6.5. (2002) See
+http : //www.mathworks . com/access/helpdesk/help/toolboX/stats/.
+Motwani, R., Palem, K., Sarkar, V., Reyen, S.: Combining register allocation
+and instruction scheduling: (technical summary). Technical Report TR 698,
+Courant Institute (1995)
+
+Hennessy, J., Gross, T.: Postpass code optimization of pipeline constraints.
+ACM TOPLAS 5 (1983) 4227448
+
+Palem, K., Simons, B.: Scheduling time—critical instructions on RISC machines.
+ACM TOPLAS 15 (1993) 6327658
+
+Leung, A., Palem, K.V., Ungureanu, C.: Run—time versus compile—time instruc—
+tion scheduling in superscalar (RISC) processors: Performance and tradeoffs. In:
+Proceedings of the third International Conference of High Performance Com—
+puting, ACM (1996)
+
+Bernstein, D., Gertner, 1.: Scheduling expressions on a pipelined processor with
+a maximun delay of one cycle. ACM TOPLAS 11 (1989) 57766
+
+Pryce, J.D., Tadjouddine, M.: Cheap Jacobians by AD regarded as compact LU
+factorization. SIAM Journal on Scientiﬁc Computing (2004) To be submitted.
+Muchnick, S.S.: Advanced Compiler Design and Implementation. Morgan Kauf—
+mann Publishers (1997)
+
+Chapman, B., Zima, H.: Supercompilers for Parallel and Vector Computers.
+Addison—Wesley Publishing Company (1991)
+
+Cofman, E., Graham, R.: Optimal scheduling for two—processor systems. Acta
+Informatica 1 (1972) 2007213
+
+Gabow, H.N., Tarjan, R.E.: A linear algorithm for a special case of disjoint set
+union. In: Proceedings of the 15th ACM Symposium on Theory of Computing,
+New York, ACM (1983) 57%6
+

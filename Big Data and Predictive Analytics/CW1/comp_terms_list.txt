@@ -1,0 +1,31 @@
+finite difference
+algorithmic differentiation
+automatic differentiation
+vertex elimination
+graph
+edge elimination
+matrix
+vector
+product
+chain rule
+floating-point
+FLOPs
+complexity
+memory requirement
+reverse mode
+forward mode
+operation
+truncation error
+rounding error
+computer program
+computer code
+runtime
+operator overloading
+source-to-source transformation
+source transformation
+performance
+cache
+loads
+stores
+multiplication
+addition

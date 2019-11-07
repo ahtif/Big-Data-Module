@@ -1,0 +1,1127 @@
+Foundational Certiﬁcation of Code
+Transformations Using Automatic Differentiation
+
+Emmanuel Tadjouddine
+Department of Computer Science & Software Engineering,
+Xi’an Jiaotong-Liverpool University
+111 Ren Ai Road, Suzhou Industrial Park,
+Suzhou, Jiangsu Province,
+PR. China 215123
+emmanuel.tadjouddine@thlu.edu.cn
+
+November 18, 2011
+
+Abstract
+
+Automatic Differentiation (AD) is concerned with the semantics augmentation
+of an input program representing a function to form a transformed program that
+computes the function’s derivatives. To ensure the correctness of the AD trans—
+formed code, particularly for safety critical applications, we propose using the
+proof—carrying code paradigm: an AD tool must provide a machine checkable cer—
+tiﬁcate for an AD generated code, which can be checked in polynomial time in the
+size of the certiﬁcate by an AD user using a simple and easy to validate program.
+Using a WHILE—language, we show how such proofs can be constructed. In par—
+ticular, we show that certain code transformations and static analyses used in AD
+can be certiﬁed using the well—established Hoare logic for program veriﬁcation.
+
+1 Introduction
+
+Automatic Differentiation (AD) [14] is now a standard technology for computing deriva—
+tives of a (vector) function f : R” a Rm deﬁned by a computer code. Such derivatives
+
+may be used as sensitivities with respect to design parameters, Jacobians for use in
+
+Newton—like iterations or in optimization algorithms, or coefﬁcients for Taylor series
+
+generation. Compared to the numerical ﬁnite differencing scheme, AD is accurate
+
+to machine precision and presents opportunities for efﬁcient derivative computation.
+
+There is already a large body of literature on the use of AD in solving engineering
+
+problems. However, the application of AD to large scale applications is not straight—
+
+forward for at least the following reasons:
+
+0 AD relies on the assumption that the input code is piecewise differentiable.
+
+0 Prior to AD, certain language constructs may need be rewritten or the input code
+be massaged for the speciﬁcs of the AD tool, see for example [24].
+
+o The input code may contain non—differentiable functions, e.g., abs or func—
+tions such as sqrt whose derivative values may overﬂow for very small num—
+bers [25].
+
+In principle, AD preserves the semantics of the input code provided this has not been
+altered prior to AD transformation. Given this semi—automatic usage of AD, can we
+trust AD for safety—critical applications?
+
+Although the chain rule of calculus and the analyses used in AD are proved correct,
+the correctness of the AD generated code is tricky to establish. First, AD may locally
+replace some part B of the input code by B’ that is not observationally equivalent to B
+even though both are semantically equivalent in that particular context. Second, the in—
+put code may not be piecewise differentiable in contrast to the AD assumption. Finally,
+AD may use certain common optimizing transformations used in compiler construction
+technology and for which formal proofs are not straightforward [3, 19]. To ensure trust
+in the AD process, we propose to shift the burden of proof from the AD client to the
+AD producer by using the proof—carrying code paradigm [20]: an AD software must
+provide a machine—checkable proof for the correctness of an AD generated code or a
+counter—example demonstrating for example that the input code is not piecewise dif—
+ferentiable; an AD user can check the correctness proof using a simple program that
+is polynomial in the size of the given proof. In a more foundational (as opposed to
+applied) perspective, we show that at least, in some simple cases, one can establish the
+correctness of a mechanical AD transformation and certain static analyses used to that
+end by using a variant of Hoare logic [17, Chap. 4]. For that purpose, we constructed
+inference rules based on relational Hoare logic [3] to establish the correctness of the
+forward mode AD. We also investigated an abductive approach [22, 18, 4, 8] aiming
+at ﬁnding preconditions given postconditions for the correctness of the reverse mode
+AD. Besides that, we aim to put forward a viewpoint that distinguishes between per—
+formance and correctness (or safety) aspects of AD transformations; the correctness
+aspects are yet to be explored in the AD literature.
+
+2 Background and Problem Statement
+
+This section gives a background on automatic differentiation, proof—carrying code and
+states the problem of certifying AD transformations.
+
+2.1 Automatic Differentiation
+
+AD is a semantics augmentation framework based on the idea that a source program S
+representing 1' : R” a Rm,x H y can be viewed as a sequence of instructions; each
+representing a function q), that has a continuous ﬁrst derivative. This assumes the
+program S is piecewise differentiable and therefore we can conceptually ﬁx the pro—
+gram’s control ﬂow to View S as a sequence of q assignments. An assignment vi :
+¢i({v]-}j<i), i: l, . . . ,q wherein j < imeans vi depends on Vj, computes the value
+
+of a variable vi in terms of previously deﬁned Vj. Thus, S represents a composition of
+functions
+
+¢q0¢q710~~0¢20¢1 (1)
+Differentiating 1' yields the following chain of matrix multiplications that compute the
+derivative of the function f represented by the program S.
+
+WK) : (13,302,171)~¢é,1(vq72)-...-¢[(X) (2)
+
+There are two main AD algorithms both with predictable complexities: the forward
+mode and the reverse mode, see [14]. Denoting X an input directional derivative, the
+derivative y can be computed by the forward mode AD as follows:
+
+y =f“(X) -X = (Plow) - ¢;71(vq72) - -¢1’(X) -X (3)
+The cost (in terms of ﬂoating—point operations) of computing Vf is about 3n times the
+
+cost of computing 1' [l4]. Denoting y the adjoint of the output y, the adjoint i of the
+input X can be computed by reverse mode AD as follows:
+
+i: ﬁx)T r : ¢f<x>7 -¢é<v1)7 -...-¢;<vq71)7 r (4)
+
+The cost of computing Vf is about 3m times the cost of computing 1' [14] but the mem—
+ory requirement may be excessive without the use of sophisticated checkpointing or
+recalculation strategies [10]. It follows that gradients, with m : 1 uses fewer ﬂoating—
+point operations with reverse mode AD. The variables X, y are called independents, de-
+pendents respectively. A variable that depends on an independent and that inﬂuences a
+dependent is called active.
+
+The source transformation approach of AD relies on compiler construction tech—
+nology. It parses the original code into an abstract syntax tree, as in the front—end of a
+compiler, see [1]. Certain constructs in the abstract syntax tree may be transformed into
+a semantically equivalent one suitable to applying the AD technique. This is termed
+canonicalizazion. Then, the code’s statements that calculate real valued variables are
+augmented with additional statements to calculate their derivatives. Data ﬂow analyses
+can be performed in order to improve the performance of the AD transformed code,
+which can be compiled and ran for numerical simulations.
+
+2.1.1 An Example
+
+Let us consider the functionf: R2 a R2,(x1,xz)H(y1 : (xz 7x1) sin(x1),y2 : sin(x1))
+for which a computer code and its computational graph are shown respectively on the
+left and on right of Figure l.
+
+Denoting dx the directional derivative of a given variable x, the forward mode AD
+will augment the input code to produce a new code, which simultaneously evaluate the
+code of the left and right of equation (5) to calculate the value of the function s as well
+
+as its directional derivative (dV5, dv6) : Vf - e wherein e is a vector in the standard
+basis R2.
+
+V3 = Sin(X1) dV3 = 005(X1)dx1
+
+V4 :xzixl dV4 : dXZ’ dx1 (5)
+V5 : V3V4 st : V3 dV4 + V4 dV3
+
+V6 : ﬂ dv6 : % dV3
+
+Figure l: A code fragment and its computational graph
+
+06
+
+  
+
+Denoting V : (3% or %, the reverse mode AD augment the input code in order to
+evaluate the code of the left of equation (6) to get the function value f(x1,xz) and then
+the code on its right to calculate a directional derivative (x—hﬁ) : e - Vf wherein e is a
+vector in the standard basis R2.
+
+a
+QJQ)
+5L:
+
+l
+
+sin(x1)
+V4 : xz 7 x1
+V5 : V3V4
+
+V6 =\/\§
+
+V3
+
+| El
+H
+
+<
+L»)
+H
+QM.)
+S
+<
+U1
+
+V4 _4 (6)
+
+5| 5|
+Ssl
+
+5
+H
+5
++
+”I
+a
+<
+D)
+
+2.1.2 About non-differentiability
+
+A real—life application may contain mathematical functions that are not differentiable
+in some points in their domain. A computer code that models such an application may
+contain intrinsic functions (e.g. abs, or arccos) or branching constructs used to
+treat physical constraints for instance non physical values of model parameters. We
+now describe three situations, which may cause non—differentiability problems.
+
+First, let us consider the case related to non—differentiable intrinsic functions. For
+instance, the derivative of cos’l is not deﬁned at x : 0 since
+
+dcos’l(x: 1)
+dx
+
+Moreover, consider the function abs. Its derivative evaluated at the point x : 0 has
+more than one possible values including 71,0,1. Choosing one of these values de—
+pends upon the numerical application. This suggests that there is no “automatic” way
+of treating such a pathological case and that code insight is crucial in guiding sen—
+sible choices. To date, the best thing an AD tool can do is to provide an exception
+handling mechanism that can be turned on in order to track down intrinsic related non—
+differentiable points. ADIFOR is a primary example for such a mechanism and to our
+knowledge, at the time of the writing, it is unique in that respect.
+
+:oo.
+
+Second, consider an engineering application in which the independent or depen—
+dent variables are real—valued but complex—valued data have been used for computation
+purposes. Using the equivalence between R2 and (C, a complex function h : a + ib H
+f(a,b) + ig(a,b) of a complex variable a + ib, where a,b are real values and f,g are
+
+real—valued functions, is differentiable if and only if h is analytic meaning %:%
+
+and %: H gi . It follows that the conjugate operator z H 2 is not differentiable. The
+application of AD into such complex—valued functions is discussed in [21]. Unlike
+real—valued functions, complex—valued functions may be many—to—one mappings. For
+example, the function sqrt maps a complex number x:a + ib to two complex numbers
+
+zand Hz with
+l _ 1
+z: §<a+ a2+b2)+i §<Ha+ a2+b2).
+
+This may raise subtle issues for the application of AD, which relies on the assumption
+that the input code is piecewise differentiable.
+
+ 
+
+2.1.3 Iterative Numerical Solvers
+
+An important question in using AD concerns differentiating through iterative processes.
+Typically, AD augments the given iteration with statements calculating derivatives.
+Empirically, AD provides the desired derivatives. However, questions remained as
+to whether the AD generated iteration converges and what it converges to. Consider
+Fischer’s example as discussed in [11]. The iterative constructor xk+1 : gk(xk) with
+
+gktx) :xepoXZ) (7)
+
+converges to g E 0 when k H 00 whilst its derivative gﬁx) H 0 but g, (0) : l. The issues
+of derivative convergence for iterative solvers in relation to AD are discussed in detail
+in [13, 15] for the forward mode AD and in [9] for the adjoint mode. In [15], it is been
+shown that the mechanical application of AD to a ﬁxpoint iteration gives a derivative
+ﬁxpoint iteration that converges R—linearly to the desired derivative for a large class of
+nicely contractive iterates or secant updating methods.
+
+Usually, current AD tools generate derivative code using the same number of iter—
+ations as the original solver. However, if the initial guess is close to the solution, then
+this adjoint solver does no longer converge to the adjoint of the solution. For example,
+let us consider the following implicit iterative solver:
+
+Z0:Z0(X7y)7 Zi:g(x7y7ZiHl) for l:1~'lv (8)
+for l a non negative integer and the function g deﬁned as:
+
+g: R3 H R
+(XOHZ) H (y2+ZZ)/x
+
+zO : m (x, y) is meant m is initialised for some values of x and y. For given values
+x : 3, y : 2 and an initial guess z : 0.5, the implicit equation
+
+z=g(x7y7Z)
+
+has a solution z*:z*(x,y):l and Vg(x,y,z*):(Hl, 1). When the code in equation 8 is
+mechanically differentiated using for example TAPENADE, we observed:
+
+0 if the initial guess is within a radius of the solution that leads to convergence,
+then the AD generated iteration converged to the correct derivative.
+
+0 if the initial guess is closer to the solution, say the initial value of z:l, then the
+derivative iteration converges in one iteration to Vg(x,y, zi):( H 1/3, 1/3), which
+is wrong.
+
+This means the assumption made by most AD tools to use the same number of iterations
+taken by the original iterative process for the derivative one is fair but may lead to
+wrong derivatives in certain cases. As suggested in [9], the AD tool ought to augment
+the convergence criterion to account for derivative convergence.
+
+In summary, validating derivative calculation via AD can be difﬁcult in the pres—
+ence of non—differentiable functions and iterative solvers. It is hoped future AD tools
+will help spotting such anomalies and raising warnings to the AD user since, to our
+knowledge, there is no automatic ways of solving these issues.
+
+2.2 Validating AD Transformations
+
+By validating a derivative code T from a source code S (T : AD(S)), we mean T and
+S have to satisfy the following property p(S, T):
+
+13(5) ? Q(57T) (9)
+
+wherein P(S) means S has a well—deﬁned semantics and represents a numerical func—
+tion f and Q(S, T) means T : AD(S) has a well—deﬁned semantics and calculates a
+derivative f’(X) -X or y-f' (X) Checking p(S,T) implies the AD tool must ensure the
+function represented by the input code is differentiable prior to differentiation.
+
+Traditionally, AD generated codes are validated using software testing recipes. The
+derivative code is run for a wide range of input data. For each run, we test the consis—
+tency of the derivative values using a combination of the following methods:
+
+0 Evaluate y : f' (X) -X using the forward mode and X : y - f' (X) using the reverse
+mode and check the equality y - y : X - X.
+
+0 Evaluate f’(X) -ei for all vectors ei in the standard basis of R” using Finite Dif—
+ferencing (FD)
+f(X + neg) H f(X)
+h 7
+and then monitor the difference between the AD and FD derivative values against
+the FD’s step size. For the ’best’ step size, the difference should be of the order
+of the square root of the machine relative precision [14].
+
+y:f’(X)-eiz (10)
+
+0 Evaluate f' (X) using other AD tools or a hand—coded derivative code, if it is
+available, and compare the different derivative values, which should be the same
+within a few multiples of the machine precision.
+
+The question is what actions should be taken if at least one of those tests does not
+hold. If we overlook the implementation quality of the AD tool, incorrect AD derivative
+values may result from a violation of the piecewise differentiability assumption. The
+AD tool ADIFOR [7] provides an exception handling mechanism allowing the user
+to locate non—differentiable points at runtime for codes containing non—differentiable
+intrinsic functions such as abs or max. However, these intrinsic functions can be
+rewritten using branching constructs as performed by the TAPENADE AD tool [16]. To
+check the correctness of AD codes, one can use a checker, a Boolean—valued function
+check(S, T) that formally veriﬁes the validating property p(S, T) by statically analysing
+both codes to establish the following logical proposition:
+
+check(S,T) : true H p(S,T) (11)
+
+In this approach, the checker itself must be validated. To avoid validating a possibly
+large code, we adopt a framework that relies on Necula’s proof—carrying code [20].
+
+2.3 Proof-Carrying Code
+
+Proof—Carrying Code (PCC) is a mechanism that enables a computer system to auto—
+matically ensure that a computer code provided by a foreign agent is safe for instal—
+lation and execution. PCC is based on the idea that the complexity of ensuring code
+safety can be shifted from the code consumer to the code producer. The code pro—
+ducer must provide a proof that the code satisﬁes some safety rules deﬁned by the code
+consumer. Safety rules are veriﬁcation conditions that must hold in order to guaran—
+tee the safety of the code. Veriﬁcation conditions can be, for example, that the code
+cannot access a forbidden memory location, the code is memory—safe or type—safe, or
+the code executes within well—speciﬁed time or resource usage limits. The proof of the
+veriﬁcation conditions is encoded in a machine readable formalism to allow automatic
+checking by the code consumer. The formalism used to express the proof is usually
+in the form of logic axioms and typing rules and must be chosen so that it is tractable
+to check the correctness of a given proof. In the PCC paradigm, certiﬁcation is about
+generating a formal proof that the code adheres to a well—deﬁned safety policy and
+validation consists in checking the generated proof is correct by using a simple and
+trusted proof—checker. PCC has applications in distributed and web computing wherein
+mobile code is allowed and in scenarios where untrusted binary codes can be shared
+by a collection of interacting software agents. In such settings, it is important to have a
+mechanism that is trusted by the producer and the consumer. As argued in [20], cryp—
+tography is weak in establishing trust in the system since it relies on personal authority
+given that trusted persons can make errors or adopt a malicious behavior occasionally.
+
+3 Unifying PCC and AD Validation
+
+Unifying PCC and AD validation implies that it is the responsibility of the AD producer
+to ensure the correctness of the AD code T from a source S by providing a proof of the
+property p(S, T) in equation (9) along with the generated code T or a counter—example
+(possibly an execution trace leading to a point of the program where the derivative
+
+function represented by T is not well—deﬁned). For a given source code S, a certifying
+AD software will return either nothing or a couple (T : AD(S),C) wherein C is a
+certiﬁcate that should be used along with both codes S and T by the veriﬁer check in
+order to establish the property p(S, T) of equation (9). In this project, our intention is
+to generate C with the help of a veriﬁcation condition generator (e.g., the WHY tool,
+see http: / /why . 1ri . fr/) and a theorem prover such as COQ [5]. The correctness
+proof of the derivative code becomes
+
+check(S, T, C) : true H p(S,T). (12)
+
+In this case, the AD user must run the veriﬁer check, which is simply a proof—checker, a
+small and easy to certify program that checks whether the generated proof C is correct.
+There are variants of the PCC framework. For example, instead of generating an entire
+proof, it may be sufﬁcient for the AD software to generate enough annotations or hints
+so that the proof can be constructed cheaply by a specialized theorem prover at the AD
+user’s site.
+
+3.1 The Piecewise Differentiability Hypothesis (PDH)
+
+The PDH (piecewise differentiability hypothesis) is the AD assumption that the input
+code is piecewise differentiable. This may be violated even in cases where the function
+represented by the input code is differentiable. A classical example is the identity
+function y : f (x) : x coded as
+
+if x =2 0 then y = 0 else y = x endif. (13)
+
+Applying AD to this code will give f’ (0) : 0 in lieu of f’ (0) : 1. This unfortunate
+scenario can happen whenever a control variable in a guard (logical expression) of
+an [F construct or a loop is active. These scenarios can be tracked by computing the
+intersection between the set V(e) of variables in each guard e and the set A of active
+variables in the program. If V(e) ﬂA : (Z) for each guard e in the program, then the
+PDH holds, otherwise the PDH may be violated, in which case an AD tool should, at
+least, issue a warning to the user that an identiﬁed construct in the program may cause
+non—differentiability of the input program.
+
+Ideally, one would like to check the PDH for a given computer code to be differen—
+tiated. The following scheme outlines such a procedure:
+
+1. Compute A the set of active variables of the program,
+2. For each guard e, compute V(e) the set of variables in e,
+
+3. If V(e) ﬂA : (2) then the PDH holds,
+
+Else ﬁnd the boundary values B described by the guard e,
+
+For each value b E B, check if the local derivative obtained by AD is the same as
+
+that obtained using the standard deﬁnition of derivative evaluation,
+
+f/(XO) : lim ffx) 7 f(xo) . (14)
+XHx0,x%x0 X 7 X0
+
+One can notice that, by applying the standard deﬁnition of derivative evaluation, to the
+code in equation (13), we can recover that f’ (0) : 1 while an AD generated code will
+produce f’(0) : 0.
+
+3.2 General Setting
+
+Generally speaking, an AD software may have a canonicalization mechanism. That is,
+it may silently rewrite certain constructs within the input code prior to differentiation.
+The transformed input code should be proven semantically equivalent to the original
+one so that the AD user can trust the AD generated code. This is even more necessary
+for legacy codes for which maintenance is crucial and the cost of maintaining differ—
+ent versions of the same code is not simply acceptable. In addition to the piecewise
+differentiability hypothesis, any prior transformation of the input code must be proven
+correct and all extra statements involving derivative calculation must adhere to a safety
+policy deﬁned by the AD user. For example, if the input code is memory and type safe,
+then the AD generated code must be memory and type safe.
+
+Figure 2: Applying PCC to formally certify AD codes
+
+ 
+
+ 
+
+AD User AD Server
+Program
+Safety
+Policy
+Configuration file
+:I
+
+Program’
+
+OK
+
+< I]: Proof Or
+Counterexample
+
+Figure 2 illustrates our PCC framework. An AD user sends a program along with
+a conﬁguration ﬁle wherein she speciﬁes information about the differentiation process
+(independents, dependents, etc.) and possibly the safety issues she cares about. The
+AD server has a well—deﬁned safety policy for generating derivatives. This is used to
+generate veriﬁcation conditions using code analysis. A veriﬁcation condition may be
+the derivative code does not overﬂow or the input code satisﬁes the PD hypothesis.
+With the help of a theorem prover, the AD server generates a proof that the derivative
+code adheres to the safety policy or a counter—example invalidating a policy line. This
+is sent to the AD user who has to verify the given proof by a simple proof—checker
+before using the AD generated code or simulates the given counter—example. Observe
+that the proof generated by the AD tool must be expressed in a formalism enabling its
+checking to be tractable. Leaving aside the practical issues of implementing such a
+scheme, see http : //raw . cs . berkeley . edu/pcc . html, we look at the theo—
+retical issues of certifying AD transformations.
+
+Sill
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+4 Foundational Certiﬁcation of AD Transformations
+
+In this section, we use Hoare logic [17, Chap. 4], a foundational formalism for program
+veriﬁcation, to certify the activity analysis, local code replacements or canonicaliza—
+tions, and the forward mode AD.
+
+Given an input computer code S and its AD transformed S’, we would like to show
+that [[S]] the semantics of S’ , coincides with that obtained using numerical differenti—
+ation as deﬁned in equation 0. In essence, we wish to show the commutation of the
+following diagram:
+
+5 —>AD s’
+
+Semantics Semantics
+
+Semantics of Derivative
+
+[[5]] [[5’1
+
+4.1 Language Used
+
+In this work, we consider a WHlLE—language composed of assignments, i f and whi 1e
+statements and in which expressions are formed using the basic arithmetic or logical
+operations. Denoting V, a set of program variables, IE the set of arithmetic expres—
+sions, B the set of Boolean expressions, and C the set of commands or statements, this
+language can be described as:
+
+x E V
+
+“017 E {+777X7/}
+
+rop E {<,>,::,§,...}
+
+lop E {A,V,ﬁ,...}
+
+e31E ::: const |x | eaope
+
+b3B ::: true |false |erope | blopb
+
+c3C ::: skip |x::e |c;c |ifbthencelsec |whilebdoc
+
+The states 6 E S : V H Z are deﬁned as associations of integer values to variables,
+and the evaluation of expressions remains standard in the natural semantics. We denote
+[[e]](I and [[b]](I the value of the arithmetic expression e and the Boolean expression b
+in a state 6. A command c evaluated at an initial state 6 leads to a ﬁnal state 6’; this
+allows us to reason on the program by using Hoare logic.
+
+Hoare logic is a sound and complete formal system that provides logical rules for
+reasoning about the correctness of computer programs. For a given statement c, the
+Hoare triple {¢}c{ VI} means the execution of c in a state satisfying the pre—condition
+q) will terminate in a state satisfying the post—condition VI. The conditions q) and VI
+are ﬁrst order logic formulas called assertions. Hoare proofs are compositional in the
+structure of the language in which the program is written. Non—differentiable intrinsic
+functions can be rewritten using [F constructs. For a given statement c, if the triple
+{¢}c{ VI} can be proved in the Hoare calculus, then the judgement )- {¢}c{w} is valid.
+
+10
+
+4.2 A Hoare Logic for Active Variables
+
+The activity analysis of program variables can be justiﬁed by the following natural
+semantics. States are assignments of values pa or na to variables which we termed
+’active’ or ’passive’ states. The values pa and na are understood as ’possibly active’
+and ’deﬁnitely not active’ respectively. We deﬁne a function act such that for any
+program variable v, act(v) 6 {pa, na} represents the activity status of v in its current
+state. The evaluation of a statement can be carried out using a pair of states: a pre—
+state and a post—state. This semantics allows us to propagate the values pa or na along
+all computation paths of the program. A path composed of active states is qualiﬁed
+as active. The deﬁnition of active variable can be interpreted as deﬁning a state to
+which there is an active path from an initial active state and from which there is an
+active path to a ﬁnal active state. In case an active post—state can be reached from more
+than one pre—state, we compute the MOP (Meet Over all Paths) upper bound as the
+union of all active pre—states. This semantics enables us to run the activity analysis
+both forwards and backwards. From ﬁnal active states one can get the corresponding
+initial active states and vice—versa. This natural semantics can be expressed using a
+more foundational formalism, typically the Hoare logic. The proof rules for our Hoare
+calculus are based on classical inference rules in logic. They are essentially deduction
+rules wherein the ’above the line’ is composed of premises and the ’under the line’
+represents the conclusion, see [17] for more details. Fig. 3 shows the proof rules for
+the WHILE—language we have considered. The formula q) [z / pa] denotes q) in which all
+occurrences of z have been replaced with pa and V(e) represents the set of variables in
+the expression e.
+
+Figure 3: Hoare logic for active variables
+
+ 
+
+{MHz 6 V(e) lacm) = pa) Adz/pail) vrrz/naJ/na | z 6 Wet} z z: e {r} “g"
+
+{¢}s1{¢0} {¢o}sz{‘rf} seq {¢Ab}51{vf} {¢Anb}52{vf} if
+{¢}SI;S2{III} {¢}ifbthen s1 else s2 {w}
+
+{¢Ab}s{¢} m k (P a (Po {¢o}s{vf0} r W0 a vi imp
+{¢}whilebdos {in43} w "8 {MSW}
+
+ 
+
+ 
+
+The assignment rule (asgn), expresses that if the lhs z is active in a post—state,
+then there exists a variable t of the rhs e such that t is active in a pre—state. If z is
+passive in a post—state, then the pre—state is the same. The sequence rule (seq) tells
+us that if we have proved {¢}s1{¢0} and {¢O}s2{w}, then we have {¢}s1;s2{w}.
+This rule enables us to compose the proofs of individual components of a sequence of
+statements by using intermediate conditions. The if rule augments the pre—condition
+q) to account for the knowledge that the test b is true or false. This means the post—
+condition VI is the MOP for the activity analysis from both s1 and s2. The while
+rule is not straightforward and requires us to ﬁnd an invariant q), which depends on
+the code fragment s and on the pre— and post— conditions relative to the set of active
+variables from the WHILE construct. A systematic way of discovering non—trivial loop
+
+11
+
+invariants is outlined in [17, p. 280]. The rule Implied (imp) states that if we have
+proved {¢O}s{ VIO} and that q) implies V30 and VI is implied by VIO, then we can prove
+{¢}s{ VI}. This allows us for example to strengthen a pre—condition by adding more
+assumptions and to weaken a post—condition by concluding less than we can. These
+rules can be composed, hence allowing us to interactively prove the activity status of
+program variables.
+
+4.3 A Hoare Logic for AD Canonicalizations
+
+An AD canonicalization consists in locally replacing a piece of code C1 by a new
+one C2 suitable for the AD transformation. One must ensure that Cl ~ C2 meaning
+C1 and C2 are semantically equivalent. To this end, we use a variant of Hoare logic
+called relational Hoare logic [3]. The inference rules are given in Fig. 4 and are
+similar to Benton’s [3]. The judgment )- C1 ~ C2 : q) H VI means simply {¢}Cl {VI} H
+{¢}C2{VI}. In the assignment rule (asgn), the lhs variable may be different. Also,
+notice that the same conditional branches must be taken (see the if rule) and that loops
+be executed the same number of times (see the while rule) on the source and target to
+guarantee their semantics equivalence.
+
+Figure 4: Hoare logic for semantics equivalence
+
+ 
+
+asgn
+i—V11:81~ 1221:821 $[V1/81]/\¢[V2/82]H¢
+
+PS1~611¢H¢0 i‘SzNCzZ (ﬂoHsteq
+i—S1;S2~CI;621¢?VI
+
+ 
+
+i—S1NCIZ V)/\(b1/\b2)HVI i—S2~621¢/\ﬁ(b1\/b2)?lff
+i-ifbl thensl else s2 ~ifb2 thencl else c2 : ¢/\(b1:b2)H VI
+
+ 
+
+if
+
+i—SNCZV)/\(b1/\b2)H¢/\(b1:b2)
+i-whilebl dos ~whileb2 doc: ¢/\(b1:b2)H¢/\ﬁ(blvb2)
+
+ 
+
+while
+
+)—¢H¢0 i—ch: ¢0HVI0 i—VIOHVI im
+i-swcquHVI p
+
+ 
+
+4.4 A Hoare Logic for Forward Mode AD
+
+The forward mode AD can be implemented using equation (3) in order to compute
+the derivative y given a directional derivative X. Usually, X is a vector of the standard
+basis of R”. Figure 5 shows how a program written in the WHILE—language can be
+transformed using the forward mode AD. It shows how an assignment, IF—construct or
+a Loop—construct can be augmented using the chain rule of calculus in order to evaluate
+derivative information. For example, given assignment S , its derivative S’ is constructed
+using the chain rule and inserted just before S to form the sequence T : S’;S. These
+
+12
+
+transformation rules provides us with a recipe to build up a derivative code from an
+input code representing a mathematical function.
+
+Figure 5: Transformation rules for the forward mode AD
+
+ 
+
+ 
+
+Assignment
+” 8 X
+Szz::e(X) H Tzdzz:z 8;) -dxi ; Z::e(X)
+i:l l
+\—,_/
+Si
+Sequence
+
+S:S1;S2HT:S’1;S1;S’2;S2
+
+If statement
+SzifbthenSl elseS2 H T :ifbthenS’ ; S1 else S’2 ; S2
+
+Loop
+S : while bdo S1 end H T : whilebdo S’ ;S1 end
+
+ 
+
+For a given source code S and its transformed T : AD(S) obtained by the trans—
+formation rules in Figure 5, we aim to establish the property p(S,T) given in equa—
+tion (9) in which P(S) is understood as a Hoare triple {¢}S{ VI} establishing that S has
+a well—deﬁned semantics and represents a function f and Q(S, T) is understood as a de—
+rived triple {qb’}T{VI’} establishing that T has a well—deﬁned semantics and computes
+f’(X) -X. Observe that the pre—conditions and post—conditions have changed from the
+source code to the transformed code in opposition to the basic rules of Figure 4. This
+reﬂects the fact that AD augments the semantics of the input code.
+
+The relational Hoare logic rules for the forward mode AD are given in Fig. 6 in
+which PDH :: true tests if the PDH (piecewise differentiability hypothesis) holds.
+This condition is the ﬁrst premise to be checked in the proof rules. If it does not hold,
+then the correctness of an AD generated code cannot be guaranteed. Furthermore, we
+sometimes gave names to certain long commands by preceding them with an identiﬁer
+followed by ’:’. The notation S H T means S is transformed into T. To give an idea of
+the proof rules, consider the assignment rule. It states that if in a pre—state, a statement
+S, z :: e(X), wherein e(X) is an expression depending on X, is transformed into the
+
+sequence T of the two assignments dz :: 21:1 (‘99—): -dxi ; z :: e(X), then we get the
+
+value of the lhs z and its derivative dz : % -X in a post—state. Notice that the guards in
+z
+the IF and WHILE constructs are the same on the source and target codes.
+
+5 Abductive Hoare Logic for the Reverse Mode AD
+
+The reverse mode AD can be implemented using equation (4) in order to compute the
+derivative X given a directional derivative y. Usually, y is a vector of the standard basis
+
+13
+
+Figure 6: Hoare logic for the forward mode AD
+
+ 
+
+asgn
+
+ 
+
+)- Szz :: e(X) H T: Q(S,T)[z/e(X),dz/2;‘:l 83:) -dx,] H Q(S,T)
+
+[‘5] [H T1: P(S])HQ(S],T1) [‘52 if? T21 Q(Sl,T1)/\P(52)HQ(52,T2)
+i-S: S1;S2 HT: T1;T2: P(S)HQ(S,T)
+
+ 
+
+seq
+
+i—SlHT11P(S1)/\bHQ(S1,T1) PDH::true
+i-Szibel elseS2 HTzifbthenTl elseT2 : P(S)HQ(S,T)
+
+ 
+
+if_true
+
+)- S2 [H T2: P(S2) AHb H Q(S2,T2) PDH :: true
+i- S: ibel else S2 H T : ifbthenTl else T2 : P(S) H Q(S,T)
+
+ 
+
+if_false
+
+l—SlHTl:P(S1,T1)/\bHP(S1,T1) PDH::true m
+i—SzwhilebdoSl HTzwhilebdoTl : P(S,T)HP(S,T)/\Hb w "8
+
+ 
+
+i—P(S)HP0 i—SHTzPoHQo i—QOHQ(S,T).
+i—SHT:P(S)HQ(S,T) [mp
+
+ 
+
+of R”. Figure 7 shows how a program in the WHILE—language can be transformed
+using the reverse mode AD assuming we have a trusted code implementing a Stack
+with the usual function push and pop. The stack can be used to preserve the original
+value of the tests involved in the loop or branching instructions but is irrelevant if
+those values cannot change during the evaluation of the input function. One may also
+recompute those values in lieu of storing them but we omit this discussion here and
+refer the reader to the work reported in for example [16, 10]. As seen for the forward
+mode AD, Figure 7 shows how the basic constructs of the WHILE—language can be
+augmented in order to evaluate the derivative of a function encoded by a computer code
+in that language. Note how the reverse mode AD evaluates ﬁrst the original function
+before going backwards to evaluate the partial derivatives. The use of the Stack allows
+to store information in the forward sweep and then use that information in the reverse
+sweep when it is needed.
+
+5.1 Abductive Hoare Logic
+
+In logic, abduction is a kind of logical inference that seeks hypotheses in order to satisfy
+given observations or conclusions, see for example [18, 22]. This type of reasoning can
+be used to verify a derivative code obtained by the reverse mode AD as follows. The
+execution of a computer program S representing a function f is a sequence of states
+from an initial state (if to a ﬁnal state (if
+
+(8:61 H 62 H (73 H H GqZCf
+Each transition changes the state. The ﬁnal state is reached after a ﬁnite number of tran—
+
+sitions qu. The reverse mode AD augments the given program S by using a forward
+
+14
+
+Figure 7: Transformation rules for the reverse mode AD
+
+ 
+
+Assignment
+8e (X)
+dxi
+
+ 
+
+S: z :: e(X) H T: z :: e(X) ; Xi : Xi +2- for each active variablexi
+
+ 
+
+S
+
+Sequence
+S: 51:52 HT: Si;Sz;S_2;S_1
+
+If statement
+S: ifbthen S1 else S2 H
+T: push(b); ifb then S1 else S2 ; pop(b); ifb thenS—l elseS—2
+
+Loop
+S: whilebdo S1 end H
+T: push(b); while b do S1 ; push(b); end :pop(b); while b doS—l; pop(b); end
+
+ 
+
+sweep to evaluate the function f and a backward sweep to accumulate the partial deriva—
+tives of f with respect to its inputs. This augmentation gives rise to a new sequence of
+states associated with the transformed program T composed of the sequence S;S. To
+verify that the property p(S, T) given in equation (9) in which P(S) is understood as a
+Hoare triple {¢}S{ VI} establishing that S has a well—deﬁned semantics and represents
+a function f and Q(S, T) is understood as a derived triple {6}T{W} establishing that T
+has a well—deﬁned semantics and computes y - f’(X), an abductive approach may be to
+assert that the property p(S, T) holds at the ﬁnal state 6,] for some q and then ﬁnds the
+weakest precondition wp satisﬁed by the preceding state Gqu- The weakest precon—
+dition is one precondition that describes the maximal set of possible preceding states
+such that the execution of T leads to a state satisfying the postcondition. Applying
+repeatedly this reasoning to all intermediate states leading to 6,], we can calculate a
+weakest precondition wpo. If we have
+
+wpo H 6 and p(S, T) : true,
+
+then the code generated by reverse mode AD is correct.
+
+5.2 Generating Preconditions by Abduction
+
+In this section, we explain how abduction is used to discover preconditions in order
+to verify that transformations performed by the reverse mode AD are correct. In our
+analysis, abduction can be expressed as follows.
+
+15
+
+Abduction. Given an assumptionA and a goal G, we aim to ﬁnd a missing hypothesis
+A making the entailment
+)- A /\ H H G (15)
+
+We can always return the false assertion for the hypothesis H but we need to ﬁnd the
+best possible solution. We say that H is a better solution of (15) than H’, H j H’, if
+A /\H H G and A /\H’ H G and H’ H H. In other words, we seek solutions that are
+minimal and consistent with the meaning of the relationship j. Figure 8 shows the
+proof rules based on abduction in order to establish the correctness of the reverse mode
+AD. Reading these proof rules from conclusion—to—premises can be viewed as a way
+for ﬁnding missing hypotheses H. This gives us a way of obtaining preconditions for
+some postconditions to hold.
+
+The key to reading the proof rules of Figure 8 is that they are of the following form:
+
+)- H’/\A H G’ Cond
+i—H/\AHG (16)
+
+In the equation (16) Cond represents a condition. This rule should be read as follows.
+In order to establish the entailment )- H /\A H G, the condition Cond is checked ﬁrst.
+If it holds, then we make a recursive call to establish the smaller but related entailment
+)- H ’ /\A H G’. The solution H’ of this simpler question is then used to compute the
+solution H of the original question. For example, the sequence rule seq expresses that in
+order to prove the correctness of the transformation of a source code S that is a sequence
+of two statements S1 and S2 into a target code T1 (S: S1;S2 H T1 : S1;S2;S_2;S_1), we
+need to ﬁrst prove that S : S1;S2 H T2 : S1;S2;S—2 is correct. This provides us with
+an abductive procedure aimed at establishing that the reverse mode AD evaluates the
+correct derivative.
+
+Figure 8: Abductive proof rules for the reverse mode AD
+
+ 
+
+i—S:z:: e(X) H T: s;§: Q(S,T)[z/e(X),fi/g—;Z]HQ(S,T) asgn
+
+l—SZ S];Sz HT2:S1;S2;S_2: P(S)/\H’HQ(S,T2)
+i-S: S1;S2 HT1:S1;S2;S—2;S—1: P(S)/\HHQ(S,T1)
+
+se
+
+ 
+
+i—SlHleP(S1)/\H’/\bHQ(S1,T1) PDH::true
+i-S:ibe1elseS2 HT: P(S)/\HHQ(S,T)
+
+ 
+
+if_true
+
+)- 52 H T2: P(S2) AH’AHb H Q(S2,T2) PDH ::true
+i-S:ibe1elseS2 H T: P(S)/\HH Q(S,T)
+
+ 
+
+if_false
+
+1-S1HT1:P(S1,T1)/\b/\H’HP(S1,T1) PDH::true
+i—S:whilebdoS1 HT: P(S,T)/\HHP(S,T)/\Hb
+
+ 
+
+while
+
+i—P(S)HP0 i—SHTzPoHQo i—QOHQ(S,T).
+i—SHT:P(S)HQ(S,T) [mp
+
+ 
+
+l6
+
+6 Related Work
+
+The idea of certifying AD derivatives is relatively new. Araya and Hascoe't [2] pro—
+posed a method that computes a valid neighborhood for a given directional derivative
+by looking at all branching tests and ﬁnding a set of constraints that the directional
+derivative must satisfy. However, applying this method for every directional derivative
+may be very expensive for large codes. Our approach to validation, previously intro—
+duced in [23], is derived from work on certifying compiler optimizations and transfor—
+mation validation for imperative languages [3, 6, 19]. Our correctness proofs of AD
+canonicalizations are similar to Benton’s relational Hoare logic for semantics equiva—
+lence between two pieces of code [3]. Our Hoare logic for active variables is inspired
+by that of live variables in [12]. The use of the PCC paradigm [20] in foundational
+certiﬁcation is also investigated in [6, 19]. Our approach for certifying AD transfor—
+mation is based on the idea that the AD producer should be able to produce a direct
+evidence in the form of a certiﬁcate for an AD generated code and that the certiﬁcate
+can be easily checked by the AD user prior to using the derivative code. Our founda—
+tional certiﬁcation of the forward mode AD is an extension of relational Hoare logic
+calculus since the assertions for the input code are augmented for the AD transformed
+code. However we relied on abductive logic [22, 18] to construct the proof rules for
+the reverse mode AD. Our abductive Hoare logic approach is inspired by work done on
+Separation Logic [4, 8] although our work does not use Separation Logic at all.
+
+7 Conclusions and Future Work
+
+We have presented an approach to ensuring trust in the AD transformation framework.
+It is based on the proof—carrying code paradigm: an AD tool must provide a machine
+checkable certiﬁcate for an AD generated code, which can be checked by an AD user
+in polynomial time in the size of the certiﬁcate by using a simple and easy to certify
+program. We then focused on the foundational aspects of providing such a proof. We
+have shown that the most important data ﬂow analysis performed by most AD tools
+(activity analysis), simple code transformations or AD canonicalizations, and the actual
+semantics augmentation performed by the forward mode AD can be certiﬁed using a
+Hoare—style calculus. We have also devised inference rules based on abductive logic
+for the correctness the reverse mode AD. This a ﬁrst but small step compared to the
+work that needs to be done in order to fully certify an AD back—end.
+
+The use of relational Hoare logic in this context has simpliﬁed the proof rules.
+This formalism has potential and deserves further study. The use of abduction in the
+proof rules of the reverse mode AD can be thought as a natural way of understanding
+the reverse mode AD. Our theoretical approach needs be implemented using an AD
+tool and a theorem prover for at least the WHILE—language considered in this work.
+We need also to ﬁnd a logical formalism in which to express a certiﬁcate so that its
+checking is tractable. Examples of such formalisms are investigated in [6, 20].
+
+17
+
+References
+
+[1]
+
+[2]
+
+[3]
+
+[4]
+
+[5]
+
+[6]
+
+[7
+
+i_i
+
+[8]
+
+[9]
+
+[10]
+
+[11]
+
+[12]
+
+[13]
+
+Aho, A., Sethi, R., Ullman, J ., Lam, M.: Compilers: principles, techniques, and
+tools, Second edn. Addison—Wesley Publishing Company, Boston, USA (2006)
+
+Araya—Polo, M., Hascoet, L.: Certiﬁcation of directional derivatives computed by
+automatic differentiation. WSEAS Transactions on Circuits and Systems (2005)
+
+Benton, N.: Simple relational correctness proofs for static analyses and pro—
+gram transformations. In: POPL ’04: Proceedings of the 31st ACM SIGPLAN—
+SIGACT symposium on Principles of programming languages, pp. 14—25. ACM
+Press, New York, NY, USA (2004)
+
+Berdine, J., Calcagno, C., O’Hearn, P.W.: Symbolic execution with separation
+logic. In: In APLAS, pp. 52—68. Springer (2005)
+
+Bertot, Y., Casteran, P.: Interactive theorem proving and program development:
+Coq’Art: the calculus of inductive constructions. Texts in theoret. comp. science.
+Springer—Verlag (2004)
+
+Besson, F., Jensen, T., Pichardie, D.: Proof—carrying code from certiﬁed abstract
+interpretation and ﬁxpoint compression. Theor. Comput. Sci. 364(3), 273—291
+(2006)
+
+Bischof, C.H., Carle, A., Khademi, P., Mauer, A.: ADIFOR 2.0: Automatic dif—
+ferentiation of Fortran 77 programs. IEEE Computational Science & Engineering
+3(3), 18—32 (1996)
+
+Calcagno, C., Distefano, D., O’Hearn, P., Yang, H.: Compositional shape analysis
+by means of bi—abduction. In: POPL ’09: Proceedings of the 36th annual ACM
+SIGPLAN—SIGACT symposium on POPL, pp. 289—300. ACM, New York, NY,
+USA (2009)
+
+Christianson, B.: Reverse accumulation and attractive ﬁxed points. Optimization
+Methods and Software 3, 311—326 (1994)
+
+FastOpt: Transformation of Algorithms in Fortran, Manual, Draft Version, TAF
+Version 1.6 (2003). See http : / /www . FastOpt . com/taf
+
+Fischer, H.: Special problems in automatic differentiation. In: A. Griewank, G.F.
+Corliss (eds.) Automatic Differentiation of Algorithms: Theory, Implementation,
+and Application, pp. 43—50. SIAM, Philadelphia, PA (1991)
+
+Frade, M.J., Saabas, A., Uustalu, T.: Foundational certiﬁcation of data—ﬂow anal—
+yses. In: TASE, pp. 107—116 (2007)
+
+Gilbert, J.C.: Automatic differentiation and iterative processes. Optimization
+Methods and Software 1, 13—21 (1992)
+
+18
+
+[14]
+
+[15]
+
+[16]
+
+[17]
+
+[18]
+
+[19]
+
+[20]
+
+[21]
+
+[22]
+
+[23]
+
+[24]
+
+[25]
+
+Griewank, A.: Evaluating Derivatives: Principles and Techniques of Algorith—
+mic Differentiation. No. 19 in Frontiers in Appl. Math. SIAM, Philadelphia, PA
+(2000)
+
+Griewank, A., Bischof, C., Corliss, G., Carle, A., Williamson, K.: Derivative
+convergence for iterative equation solvers. Optimization Methods and Software
+2, 321—355 (1993)
+
+Hascoet, L., Pascual, V.: TAPENADE 2.l user’s guide. INRIA Sophia Antipolis,
+2004, Route des Lucioles, 09902 Sophia Antipolis, France (2004). See http:
+//www. inria . fr/rrrt/rtHO3OO . html
+
+Huth, M.R.A., Ryan, M.D.: Logic in Computer Science: Modelling and Reason—
+ing about Systems. Cambridge University Press, Cambridge, England (2000)
+
+Inoue, K.: Induction, abduction, and consequence—ﬁnding. In: ]LP ’01: Proceed—
+ings of the 11th Int’ Conf. on Inductive Logic Programming, pp. 65—79. Springer,
+London, UK (2001)
+
+Leroy, X.: Formal certiﬁcation of a compiler back—end or: programming a com—
+piler with a proof assistant. In: Proceedings of POPL’06, pp. 42—54 (2006)
+
+Necula, G.C.: Proof—carrying code. In: Proceedings of POPL’97, pp. 106—119.
+ACM Press, New York, NY, USA (1997)
+
+Pusch, G.D., Bischof, C., Carle, A.: On automatic differentiation of codes with
+COMPLEX arithmetic with respect to real variables. Technical Memorandum
+ANL/MCS—TM—188, Argonne National Laboratory, Mathematics and Computer
+Science Division, 9700 South Casss Avenue, Argonne, IL 60439 (1995)
+
+Ross, B.J.: Running programs backwards: The logical inversion of imperative
+computation. Formal Aspects of Computing 9, 331—348 (1998)
+
+Tadjouddine, E.M.: On formal certiﬁcation of AD transformations. In:
+C. Bischof, M. Biicker, P. Hovland, U. Naumann, J. Utke (eds.) Advances in
+Automatic Differentiation, Lecture Notes in Computational Science and Engi-
+neering, vol. 64, pp. 23—34. Springer, Berlin (2008)
+
+Tadjouddine, M., Forth, S.A., Keane, A.J.: Adjoint differentiation of a structural
+dynamics solver. In: M. Biicker, G. Corliss, P. Hovland, U. Naumann, B. Nor—
+ris (eds.) Automatic Differentiation: Applications, Theory, and Implementations,
+LNCSE, pp. 309—319. Springer, Berlin, Germany (2005)
+
+Xiao, Y., Xue, M., Martin, W., Gao, J .: Development of an adjoint for a complex
+atmospheric model, the ARPS, using TAF. In: H.M. Biicker, G.F. Corliss, P.D.
+Hovland, U. Naumann, B. Norris (eds.) Automatic Differentiation: Applications,
+Theory, and Implementations, LNCSE, pp. 263—273. Springer, Berlin, Germany
+(2005)
+
+19
+
